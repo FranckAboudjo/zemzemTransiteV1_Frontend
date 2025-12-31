@@ -1,0 +1,123 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Rubik:wght@300;400;500;600&family=Urbanist:ital,wght@0,100..900;1,100..900&display=swap");
+@import "tailwindcss";
+
+@theme {
+  /* Typographies */
+  --font-display: "Montserrat", sans-serif; /* Pour les titres et le logo */
+  --font-body: "Rubik", sans-serif; /* Pour le texte et les formulaires */
+  --font-alt: "Urbanist", sans-serif; /* Pour les accents et chiffres */
+
+  /* Breakpoints */
+  --breakpoint-3xl: 1920px;
+
+  /* Palette de couleurs extraite des visuels */
+  --color-primary: #ef233c; /* Rouge corail (Actions principales) */
+  --color-secondary: #202042; /* Bleu nuit profond (Sidebar / Texte fort) */
+  --color-accent: #8099ae; /* Gris bleuté (Textes secondaires) */
+  --color-surface: #ffffff; /* Blanc pur (Cartes et inputs) */
+  --color-background: #faf8fa; /* Off-white (Fond d'écran) */
+  --color-border: #e2e8f0; /* Bordures légères */
+
+  /* Couleurs de notifications */
+  --color-success: #10b981;
+  --color-error: #ef233c;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-secondary);
+    line-height: 1.6;
+  }
+
+  /* Titres Montserrat pour l'aspect "Brand" */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    color: var(--color-secondary);
+    letter-spacing: -0.03em;
+  }
+
+  /* Liens et transitions */
+  a {
+    transition: all 0.2s ease-in-out;
+  }
+}
+
+@layer components {
+  /* Scrollbar fine et moderne */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--color-accent);
+  }
+
+  /* Bouton Primary (Style Image Login) */
+  .btn-primary {
+    @apply bg-primary text-white px-6 py-3 rounded-xl font-bold font-display
+           hover:brightness-110 active:scale-95 transition-all 
+           shadow-lg shadow-primary/20 flex items-center justify-center gap-2;
+  }
+
+  /* Inputs stylisés (Style Image Login) */
+  .input-field {
+    @apply w-full px-4 py-3.5 border-2 border-gray-100 bg-gray-50 rounded-xl
+           focus:bg-white focus:border-primary focus:ring-0 outline-none
+           placeholder:text-gray-400 transition-all font-body;
+  }
+
+  /* Cartes Premium (Style Notifications) */
+  .card-premium {
+    @apply bg-white border border-border rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.03)]
+           hover:shadow-[0_10px_30px_rgba(0,0,0,0.06)] transition-all p-6;
+  }
+
+  /* Barre latérale de notification (Succès/Erreur) */
+  .toast-border-success {
+    border-left: 6px solid var(--color-success);
+  }
+  .toast-border-error {
+    border-left: 6px solid var(--color-error);
+  }
+}
+
+/* Utilitaires de texte dynamiques */
+.text-gain {
+  color: var(--color-success);
+}
+.text-perte {
+  color: var(--color-error);
+}
+
+/* Animation pour les toasts */
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.animate-toast {
+  animation: slideIn 0.3s ease-out forwards;
+}
