@@ -2,7 +2,7 @@ import axios from "axios";
 
 const options = {
   // Priorité à la variable d'env, sinon fallback sur l'URL de votre backend
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api",
+  baseURL: import.meta.env.VITE_API_BASE_URL,
   withCredentials: true, // Indispensable pour l'envoi/réception des cookies JWT
   timeout: 10000, // Réduit à 10s (80s est trop long pour l'UX login)
   headers: {
