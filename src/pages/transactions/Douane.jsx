@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Search,
   PlusCircle,
@@ -14,12 +14,11 @@ import toast from "react-hot-toast";
 import Modal from "../../components/ui/Modal";
 import API from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
-import { useAuth } from "../../context/AuthContext"; // Import du contexte
-import { socket } from "../../utils/socket";
+import { useAuth } from "../../context/AuthContext";
 
 const Douane = () => {
   // --- ÉTATS ---
-  const { user } = useAuth(); // Récupération de l'utilisateur connecté
+  const { user } = useAuth();
   const [historiqueDouane, setHistoriqueDouane] = useState([]);
   const [balanceDouane, setBalanceDouane] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,11 +34,10 @@ const Douane = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ montant: "", description: "" });
 
-  const fetchData = async () => {
+  // Utilisation de useCallback pour stabiliser la fonction de récupération
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
-
-      // Appel des APIs : Solde, Historique complet et Remboursements
       const [resBalance, resHist, resRemb] = await Promise.all([
         API.get(API_PATHS.GETINFO.GET_INFO_CREDIT),
         API.get(API_PATHS.HISTORIQUE.DOUANE),
@@ -55,17 +53,12 @@ const Douane = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
+  // Chargement initial uniquement
   useEffect(() => {
     fetchData();
-    socket.on("douaneUpdated", fetchData);
-    socket.on("remboursementUpdated", fetchData); // Optionnel si votre backend émet ce signal
-    return () => {
-      socket.off("douaneUpdated");
-      socket.off("remboursementUpdated");
-    };
-  }, []);
+  }, [fetchData]);
 
   // --- LOGIQUE DE FILTRAGE ---
   const { filteredData, stats } = useMemo(() => {
@@ -78,7 +71,6 @@ const Douane = () => {
           ? new Date(item.date || item.createdAt).toISOString().split("T")[0]
           : "";
 
-      // Filtrage par Onglet spécifique (pour l'historique général)
       if (
         activeTab === "bl-liquides" &&
         (item.typeOperation !== "Debit" || !item.id_bl)
@@ -132,16 +124,20 @@ const Douane = () => {
       toast.success("Remboursement enregistré avec succès");
       setIsModalOpen(false);
       setFormData({ montant: "", description: "" });
+
+      // Rafraîchissement manuel puisque Socket.io est supprimé
       fetchData();
     } catch (error) {
-      toast.error(error.message || "Erreur lors du remboursement");
+      toast.error(
+        error.response?.data?.message || "Erreur lors du remboursement"
+      );
     }
   };
 
   if (isLoading)
     return (
-      <div className="h-96 flex items-center justify-center animate-spin">
-        <div className="size-10 border-4 border-blue-600 border-t-transparent rounded-full"></div>
+      <div className="h-96 flex items-center justify-center">
+        <div className="size-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
 
@@ -167,12 +163,6 @@ const Douane = () => {
                 <span className="text-xl text-white">MRU</span>
               </h1>
             </div>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-900/20"
-            >
-              <PlusCircle size={18} /> Remboursement
-            </button>
           </div>
         </div>
         <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm flex flex-col justify-center items-center text-center">
@@ -320,17 +310,6 @@ const Douane = () => {
                       </tr>
                     );
                   })}
-                  <tr className="bg-slate-900 text-white font-black uppercase tracking-widest text-[10px]">
-                    <td colSpan="2" className="px-8 py-6">
-                      Cumul Période
-                    </td>
-                    <td className="px-8 py-6 text-right text-red-400">
-                      - {stats.debit.toLocaleString()}
-                    </td>
-                    <td className="px-8 py-6 text-right text-emerald-400">
-                      + {stats.credit.toLocaleString()}
-                    </td>
-                  </tr>
                 </tbody>
               </table>
             </div>
@@ -402,7 +381,6 @@ const Douane = () => {
         )}
       </div>
 
-      {/* MODAL REMBOURSEMENT */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

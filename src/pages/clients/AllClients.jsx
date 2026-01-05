@@ -16,7 +16,6 @@ import toast from "react-hot-toast";
 import Modal from "../../components/ui/Modal";
 import API from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
-import { socket } from "../../utils/socket";
 import { useAuth } from "../../context/AuthContext";
 import CreateClientForm from "./CreateClientForm";
 import UpdateClientForm from "./UpdateClientForm";
@@ -25,6 +24,7 @@ const AllClients = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+
   // --- ÉTATS ---
   const [clients, setClients] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,12 +38,11 @@ const AllClients = () => {
   const [selectedClient, setSelectedClient] = useState(null);
   const [activeMenu, setActiveMenu] = useState(null);
 
-  // --- CHARGEMENT INITIAL ---
+  // --- CHARGEMENT DES DONNÉES ---
   const fetchClients = async () => {
     try {
       setIsLoading(true);
       const response = await API.get(API_PATHS.CLIENTS.GET_ALL_CLIENTS);
-      // Correction de la clé d'accès aux données
       setClients(response.data.data || []);
     } catch (err) {
       toast.error("Erreur de récupération des clients");
@@ -52,35 +51,13 @@ const AllClients = () => {
     }
   };
 
-  // --- TEMPS RÉEL (SOCKET.IO) ---
   useEffect(() => {
     fetchClients();
 
-    socket.on("clientCreated", (newClient) => {
-      setClients((prev) => [newClient, ...prev]);
-    });
-
-    socket.on("clientUpdated", (updatedClient) => {
-      setClients((prev) =>
-        prev.map((c) => (c._id === updatedClient._id ? updatedClient : c))
-      );
-    });
-
-    socket.on("clientDeleted", (data) => {
-      // On gère si data est l'ID directement ou un objet { _id: ... }
-      const deletedId = typeof data === "object" ? data._id : data;
-      setClients((prev) => prev.filter((c) => c._id !== deletedId));
-    });
-
+    // Fermeture du menu au clic ailleurs
     const handleClickOutside = () => setActiveMenu(null);
     window.addEventListener("click", handleClickOutside);
-
-    return () => {
-      socket.off("clientCreated");
-      socket.off("clientUpdated");
-      socket.off("clientDeleted");
-      window.removeEventListener("click", handleClickOutside);
-    };
+    return () => window.removeEventListener("click", handleClickOutside);
   }, []);
 
   // --- ACTIONS ---
@@ -91,15 +68,12 @@ const AllClients = () => {
         ":id",
         selectedClient._id
       );
-
       await API.delete(url);
-
-      // MISE À JOUR LOCALE IMMÉDIATE (Si Socket.io met trop de temps)
-      setClients((prev) => prev.filter((c) => c._id !== selectedClient._id));
 
       toast.success("Client supprimé avec succès");
       setIsDeleteOpen(false);
       setSelectedClient(null);
+      fetchClients(); // Mise à jour manuelle après suppression
     } catch (err) {
       toast.error(err.response?.data?.message || "Erreur de suppression");
     }
@@ -143,7 +117,7 @@ const AllClients = () => {
       <div className="h-96 flex flex-col items-center justify-center gap-4">
         <div className="size-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div>
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-          Synchronisation...
+          Chargement des données...
         </p>
       </div>
     );
@@ -160,7 +134,6 @@ const AllClients = () => {
             Gérez vos relations et suivis financiers.
           </p>
         </div>
-
         <div className="flex items-center gap-3 w-full md:w-auto">
           <div className="relative flex-1 md:w-80">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
@@ -193,6 +166,7 @@ const AllClients = () => {
               <th className="px-6 py-4">Code client</th>
               <th className="px-6 py-4">Type</th>
               <th className="px-6 py-4 text-center">Dossiers BL</th>
+              <th className="px-6 py-4 text-center">Conteneurs</th>
               <th className="px-6 py-4 text-center">Solde</th>
               <th className="px-6 py-4">Statut</th>
               <th className="px-6 py-4 w-12"></th>
@@ -220,10 +194,8 @@ const AllClients = () => {
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-5 ">
-                  <div className="flex  gap-1.5 text-xs font-semibold text-slate-600">
-                    {client.codeClient}
-                  </div>
+                <td className="px-6 py-5 text-xs font-semibold text-slate-600">
+                  {client.codeClient}
                 </td>
                 <td className="px-6 py-5">
                   <span
@@ -238,9 +210,12 @@ const AllClients = () => {
                 </td>
                 <td className="px-6 py-5 text-center">
                   <div className="flex items-center justify-center gap-1.5 text-sm font-bold text-slate-600">
-                    <FileText size={14} className="text-slate-300" />
+                    <FileText size={14} className="text-slate-300" />{" "}
                     {client.bls?.length || 0}
                   </div>
+                </td>
+                <td className="px-6 py-5 text-center text-sm font-bold text-slate-600">
+                  {client.totalConteneursGlobal || 0}
                 </td>
                 <td className="px-6 py-5 text-center">
                   <div
@@ -249,7 +224,9 @@ const AllClients = () => {
                     }`}
                   >
                     {new Intl.NumberFormat("fr-FR", {
+                      style: "currency",
                       currency: "MRU",
+                      maximumFractionDigits: 0,
                     }).format(client.solde || 0)}
                   </div>
                 </td>
@@ -282,7 +259,6 @@ const AllClients = () => {
                       >
                         <Edit2 size={14} className="text-indigo-500" /> Modifier
                       </button>
-
                       {isAdmin && (
                         <button
                           onClick={() => {
@@ -352,7 +328,7 @@ const AllClients = () => {
           onCancel={() => setIsCreateOpen(false)}
           onSuccess={() => {
             setIsCreateOpen(false);
-            fetchClients(); // Sécurité si socket lent
+            fetchClients();
           }}
         />
       </Modal>

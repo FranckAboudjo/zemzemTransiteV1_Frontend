@@ -26,6 +26,8 @@ import toast from "react-hot-toast";
 import * as XLSX from "xlsx";
 import API from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
+import { PDFDownloadLink } from "@react-pdf/renderer";
+import BilanPDF from "./BilanPDF";
 
 const ClientDetails = () => {
   const { id } = useParams();
@@ -666,7 +668,7 @@ const ClientDetails = () => {
           {/* ONGLET BILAN & BALANCE */}
           {activeTab === "bilan" && (
             <div className="space-y-6 animate-fadeIn">
-              {/* --- NOUVEAU : BARRE DE FILTRE PAR DATE --- */}
+              {/* --- BARRE D'ACTIONS --- */}
               <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-slate-900 text-white rounded-lg">
@@ -682,7 +684,7 @@ const ClientDetails = () => {
                   </div>
                 </div>
 
-                <div className="flex-1 flex justify-end">
+                <div className="flex-1 flex justify-end gap-3">
                   <DateFilter
                     values={dateFilters.bilan}
                     onChange={(vals) =>
@@ -691,61 +693,95 @@ const ClientDetails = () => {
                   />
                 </div>
 
-                <button
-                  onClick={() => {
-                    // 1. Préparation des données filtrées
-                    const start = new Date(dateFilters.bilan.start);
-                    start.setHours(0, 0, 0, 0);
-                    const end = new Date(dateFilters.bilan.end);
-                    end.setHours(23, 59, 59, 999);
+                <div className="flex items-center gap-2">
+                  {/* BOUTON EXCEL EXISTANT */}
+                  <button
+                    onClick={() => {
+                      const start = new Date(dateFilters.bilan.start);
+                      start.setHours(0, 0, 0, 0);
+                      const end = new Date(dateFilters.bilan.end);
+                      end.setHours(23, 59, 59, 999);
 
-                    const filteredOps = transactions
-                      .filter((t) => {
-                        const d = new Date(t.date);
-                        return d >= start && d <= end;
-                      })
-                      .sort((a, b) => new Date(a.date) - new Date(b.date)); // Ordre chronologique pour Excel
+                      const filteredOps = transactions
+                        .filter((t) => {
+                          const d = new Date(t.date);
+                          return d >= start && d <= end;
+                        })
+                        .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-                    // 2. Formatage des lignes pour Excel
-                    const excelData = [
-                      {
-                        Date: "---",
-                        Désignation: "SOLDE INITIAL (REPORT)",
-                        Débit: bilanData.initial,
-                        Crédit: 0,
-                      },
-                      ...filteredOps.map((t) => {
-                        const isCredit = t.typeOperation
-                          ?.toLowerCase()
-                          .normalize("NFD")
-                          .replace(/[\u0300-\u036f]/g, "")
-                          .includes("credit");
-                        return {
-                          Date: new Date(t.date).toLocaleDateString(),
-                          Désignation: t.description.toUpperCase(),
-                          Débit: !isCredit ? t.montant : 0,
-                          Crédit: isCredit ? t.montant : 0,
-                        };
-                      }),
-                      {
-                        Date: "---",
-                        Désignation: "SOLDE FINAL (BALANCE)",
-                        Débit: bilanData.final,
-                        Crédit: 0,
-                      },
-                    ];
+                      const excelData = [
+                        {
+                          Date: "---",
+                          Désignation: "SOLDE INITIAL (REPORT)",
+                          Débit: bilanData.initial,
+                          Crédit: 0,
+                        },
+                        ...filteredOps.map((t) => {
+                          const isCredit = t.typeOperation
+                            ?.toLowerCase()
+                            .normalize("NFD")
+                            .replace(/[\u0300-\u036f]/g, "")
+                            .includes("credit");
+                          return {
+                            Date: new Date(t.date).toLocaleDateString(),
+                            Désignation: t.description.toUpperCase(),
+                            Débit: !isCredit ? t.montant : 0,
+                            Crédit: isCredit ? t.montant : 0,
+                          };
+                        }),
+                        {
+                          Date: "---",
+                          Désignation: "SOLDE FINAL (BALANCE)",
+                          Débit: bilanData.final,
+                          Crédit: 0,
+                        },
+                      ];
 
-                    // 3. Appel de la fonction d'export (assurez-vous d'avoir défini exportToExcel)
-                    exportToExcel(
-                      excelData,
-                      `Bilan_${client?.nom}_${dateFilters.bilan.start}_au_${dateFilters.bilan.end}`
-                    );
-                  }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 transition-colors"
-                >
-                  <Download size={16} />
-                  Exporter Excel
-                </button>
+                      exportToExcel(
+                        excelData,
+                        `Bilan_${client?.nom}_${dateFilters.bilan.start}_au_${dateFilters.bilan.end}`
+                      );
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 transition-colors shadow-sm"
+                  >
+                    <Download size={16} />
+                    Excel
+                  </button>
+
+                  {/* NOUVEAU BOUTON PDF (Style Épuré ZemZem) */}
+                  <PDFDownloadLink
+                    document={
+                      <BilanPDF
+                        client={client}
+                        period={dateFilters.bilan}
+                        bilanSummary={bilanData}
+                        data={transactions
+                          .filter((t) => {
+                            const d = new Date(t.date);
+                            const s = new Date(dateFilters.bilan.start);
+                            s.setHours(0, 0, 0, 0);
+                            const e = new Date(dateFilters.bilan.end);
+                            e.setHours(23, 59, 59, 999);
+                            return d >= s && d <= e;
+                          })
+                          .sort((a, b) => new Date(a.date) - new Date(b.date))}
+                      />
+                    }
+                    fileName={`Bilan_${
+                      client?.nom
+                    }_${new Date().toLocaleDateString()}.pdf`}
+                  >
+                    {({ loading }) => (
+                      <button
+                        disabled={loading}
+                        className="bg-[#EF233C] hover:bg-[#d91e34] text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 transition-colors shadow-sm"
+                      >
+                        <FileText size={16} />
+                        {loading ? "Calcul..." : "PDF"}
+                      </button>
+                    )}
+                  </PDFDownloadLink>
+                </div>
               </div>
 
               {/* --- CARTES DE RÉSUMÉ --- */}
@@ -753,25 +789,25 @@ const ClientDetails = () => {
                 <SummaryCard
                   title="Solde Initial"
                   amount={bilanData.initial}
-                  sub="Report"
+                  sub="Report Antérieur"
                   color="text-slate-600"
                 />
                 <SummaryCard
                   title="Total Débit"
                   amount={bilanData.debit}
-                  sub="Facturé"
+                  sub="Dépenses / Factures"
                   color="text-red-500"
                 />
                 <SummaryCard
                   title="Total Crédit"
                   amount={bilanData.credit}
-                  sub="Encaissé"
+                  sub="Versements Recus"
                   color="text-emerald-500"
                 />
                 <SummaryCard
                   title="Solde Final"
                   amount={bilanData.final}
-                  sub="Balance"
+                  sub="Balance Nette"
                   color="text-white"
                   bg="bg-slate-900"
                 />
@@ -779,40 +815,43 @@ const ClientDetails = () => {
 
               {/* --- TABLEAU DU BILAN --- */}
               <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-                <div className="max-h-[450px] overflow-y-auto">
+                <div className="max-h-[500px] overflow-y-auto">
                   <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 sticky top-0 z-10">
                       <tr>
-                        <th className="px-8 py-4 border-b border-slate-100">
+                        <th className="px-8 py-5 border-b border-slate-100">
                           Date
                         </th>
-                        <th className="px-8 py-4 border-b border-slate-100">
+                        <th className="px-8 py-5 border-b border-slate-100">
                           Désignation
                         </th>
-                        <th className="px-8 py-4 text-right border-b border-slate-100">
+                        <th className="px-8 py-5 text-right border-b border-slate-100">
                           Débit (-)
                         </th>
-                        <th className="px-8 py-4 text-right border-b border-slate-100">
+                        <th className="px-8 py-5 text-right border-b border-slate-100">
                           Crédit (+)
                         </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {/* LIGNE DE REPORT */}
-                      <tr className="bg-slate-50/30 font-bold">
-                        <td className="px-8 py-4 text-xs text-slate-400">
-                          REPORT
+                      <tr className="bg-slate-50/50 font-bold italic">
+                        <td className="px-8 py-4 text-[10px] text-slate-400">
+                          ---
                         </td>
-                        <td className="px-8 py-4 text-xs uppercase text-slate-400 font-black">
-                          SOLDE ANTÉRIEUR AU{" "}
+                        <td className="px-8 py-4 text-[10px] uppercase text-slate-500 font-black">
+                          Solde de report au{" "}
                           {new Date(
                             dateFilters.bilan.start
                           ).toLocaleDateString()}
                         </td>
-                        <td className="px-8 py-4 text-right text-slate-400 font-black">
-                          {bilanData.initial.toLocaleString()}
+                        <td className="px-8 py-4 text-right text-slate-500 font-black">
+                          {bilanData.initial.toLocaleString()}{" "}
+                          <span className="text-[8px]">MRU</span>
                         </td>
-                        <td className="px-8 py-4 text-right">-</td>
+                        <td className="px-8 py-4 text-right text-slate-300">
+                          -
+                        </td>
                       </tr>
 
                       {/* TRANSACTIONS FILTRÉES */}
@@ -829,19 +868,16 @@ const ClientDetails = () => {
                         .map((t) => {
                           const isCredit = t.typeOperation
                             ?.toLowerCase()
-                            .normalize("NFD")
-                            .replace(/[\u0300-\u036f]/g, "")
                             .includes("credit");
-
                           return (
                             <tr
                               key={t._id}
-                              className="hover:bg-slate-50/50 transition-colors"
+                              className="hover:bg-slate-50/50 transition-colors group"
                             >
                               <td className="px-8 py-4 text-xs text-slate-500 font-bold">
                                 {new Date(t.date).toLocaleDateString()}
                               </td>
-                              <td className="px-8 py-4 text-sm font-black text-xs text-slate-800">
+                              <td className="px-8 py-4 text-xs font-black text-slate-700 uppercase">
                                 {t.description}
                               </td>
                               <td className="px-8 py-4 text-right font-black text-red-500">
@@ -854,21 +890,19 @@ const ClientDetails = () => {
                           );
                         })}
                     </tbody>
-
-                    {/* PIED DE TABLEAU : RÉCAPITULATIF */}
                     <tfoot className="bg-slate-900 text-white font-black">
                       <tr>
                         <td
                           colSpan="2"
-                          className="px-8 py-4 text-[10px] uppercase tracking-wider"
+                          className="px-8 py-5 text-[10px] uppercase tracking-widest"
                         >
-                          Total de la période sélectionnée
+                          Balance de la période
                         </td>
-                        <td className="px-8 py-4 text-right">
-                          - {bilanData.debit.toLocaleString()}
+                        <td className="px-8 py-5 text-right text-red-400">
+                          {bilanData.debit.toLocaleString()}
                         </td>
-                        <td className="px-8 py-4 text-right">
-                          + {bilanData.credit.toLocaleString()}
+                        <td className="px-8 py-5 text-right text-emerald-400">
+                          {bilanData.credit.toLocaleString()}
                         </td>
                       </tr>
                     </tfoot>

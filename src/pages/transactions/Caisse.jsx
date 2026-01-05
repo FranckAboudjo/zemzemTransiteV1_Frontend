@@ -12,22 +12,26 @@ import {
   Trash2,
   PieChart,
   AlertTriangle,
-  TrendingUp,
-  TrendingDown,
+  RefreshCw,
+  Printer,
+  UserCheck,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Modal from "../../components/ui/Modal";
 import API from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
-import { socket } from "../../utils/socket";
 import VersementClientForm from "./VersementClientForm";
 import RechargeCaisseForm from "./RechargeCaisseForm";
+import EditVersementClientForm from "./EditVersementClientForm";
+import { pdf } from "@react-pdf/renderer";
+import BordereauVersement from "./BordereauVersement";
 
 const Caisse = () => {
   // --- ÉTATS ---
   const [historiqueCaisse, setHistoriqueCaisse] = useState([]);
   const [versementsAgent, setVersementsAgent] = useState([]);
-  const [rechargesCaisse, setRechargesCaisse] = useState([]); // Ajouté pour les recharges
+  const [rechargesCaisse, setRechargesCaisse] = useState([]);
+  const [versementsClient, setVersementsClient] = useState([]); // Nouvel état
   const [balances, setBalances] = useState({ solde: 0, soldeDouane: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -40,27 +44,35 @@ const Caisse = () => {
   // --- MODALS ---
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isRechargeOpen, setIsRechargeOpen] = useState(false);
-
-  // --- ÉTATS MODALS (EDITION & SUPPRESSION) ---
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isEditClientOpen, setIsEditClientOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
+
   const [editFormData, setEditFormData] = useState({
     montant: "",
     description: "",
   });
 
+  // --- CHARGEMENT DES DONNÉES ---
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [resCaisse, resDouane, resHist, resAgents, resRecharges] =
-        await Promise.all([
-          API.get(API_PATHS.GETINFO.GET_INFO_CAISSE),
-          API.get(API_PATHS.GETINFO.GET_INFO_CREDIT),
-          API.get(API_PATHS.HISTORIQUE.CAISSE),
-          API.get(API_PATHS.VERSEMENTAGENT.GET_ALL_VERSEMENT_AGENT),
-          API.get(API_PATHS.RECHARGE.GET_ALL_RECHARGE), // Ajouté
-        ]);
+      const [
+        resCaisse,
+        resDouane,
+        resHist,
+        resAgents,
+        resRecharges,
+        resVClient,
+      ] = await Promise.all([
+        API.get(API_PATHS.GETINFO.GET_INFO_CAISSE),
+        API.get(API_PATHS.GETINFO.GET_INFO_CREDIT),
+        API.get(API_PATHS.HISTORIQUE.CAISSE),
+        API.get(API_PATHS.VERSEMENTAGENT.GET_ALL_VERSEMENT_AGENT),
+        API.get(API_PATHS.RECHARGE.GET_ALL_RECHARGE),
+        API.get(API_PATHS.VERSEMENTCLIENT.GET_ALL_VERSEMENT_CLIENT),
+      ]);
 
       setBalances({
         solde: resCaisse.data?.solde || 0,
@@ -68,7 +80,8 @@ const Caisse = () => {
       });
       setHistoriqueCaisse(resHist.data?.data || []);
       setVersementsAgent(resAgents.data?.data || []);
-      setRechargesCaisse(resRecharges.data?.data || []); // Ajouté
+      setRechargesCaisse(resRecharges.data?.data || []);
+      setVersementsClient(resVClient.data?.data || []);
     } catch (err) {
       toast.error("Erreur de récupération des données");
     } finally {
@@ -78,25 +91,33 @@ const Caisse = () => {
 
   useEffect(() => {
     fetchData();
-    socket.on("caisseUpdated", fetchData);
-    socket.on("versementAgentUpdated", fetchData);
-    socket.on("rechargeCaisseUpdated", fetchData); // Ajouté
-    return () => {
-      socket.off("caisseUpdated");
-      socket.off("versementAgentUpdated");
-      socket.off("rechargeCaisseUpdated");
-    };
   }, []);
 
-  // --- GESTION ACTIONS (AGENTS & RECHARGES) ---
+  // --- GESTION ACTIONS ---
+  const handlePrint = async (item) => {
+    try {
+      const doc = <BordereauVersement data={item} />;
+      const asPdf = pdf([]);
+      asPdf.updateContainer(doc);
+      const blob = await asPdf.toBlob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch (error) {
+      toast.error("Erreur lors de la génération du PDF");
+    }
+  };
 
   const openEditModal = (transaction) => {
     setSelectedTransaction(transaction);
-    setEditFormData({
-      montant: transaction.montant,
-      description: transaction.description,
-    });
-    setIsEditOpen(true);
+    if (activeTab === "versements_client") {
+      setIsEditClientOpen(true);
+    } else {
+      setEditFormData({
+        montant: transaction.montant,
+        description: transaction.description,
+      });
+      setIsEditOpen(true);
+    }
   };
 
   const openDeleteModal = (transaction) => {
@@ -113,7 +134,6 @@ const Caisse = () => {
       }`.trim();
 
       const isRecharge = activeTab === "recharges";
-
       const payload = {
         montant: Number(editFormData.montant),
         description: editFormData.description,
@@ -128,7 +148,6 @@ const Caisse = () => {
         : API_PATHS.VERSEMENTAGENT.UPDATE_VERSEMENT_AGENT;
 
       const url = urlTemplate.replace(":id", selectedTransaction._id);
-
       await API.patch(url, payload);
 
       toast.success("Mise à jour réussie");
@@ -143,13 +162,15 @@ const Caisse = () => {
 
   const handleDelete = async () => {
     try {
-      const isRecharge = activeTab === "recharges";
-      const urlTemplate = isRecharge
-        ? API_PATHS.RECHARGE.DELETE_RECHARGE
-        : API_PATHS.VERSEMENTAGENT.DELETE_VERSEMENT_AGENT;
+      let urlTemplate = "";
+      if (activeTab === "recharges")
+        urlTemplate = API_PATHS.RECHARGE.DELETE_RECHARGE;
+      else if (activeTab === "agents")
+        urlTemplate = API_PATHS.VERSEMENTAGENT.DELETE_VERSEMENT_AGENT;
+      else if (activeTab === "versements_client")
+        urlTemplate = API_PATHS.VERSEMENTCLIENT.DELETE_VERSEMENT_CLIENT;
 
       const url = urlTemplate.replace(":id", selectedTransaction._id);
-
       await API.delete(url);
 
       toast.success("Suppression réussie");
@@ -162,11 +183,12 @@ const Caisse = () => {
     }
   };
 
-  // --- LOGIQUE DE FILTRAGE & BILAN ---
+  // --- LOGIQUE DE FILTRAGE ---
   const { filteredData, stats } = useMemo(() => {
     let currentDataSource = historiqueCaisse;
     if (activeTab === "agents") currentDataSource = versementsAgent;
     if (activeTab === "recharges") currentDataSource = rechargesCaisse;
+    if (activeTab === "versements_client") currentDataSource = versementsClient;
 
     const filtered = currentDataSource.filter((item) => {
       const itemDate = item.date
@@ -174,23 +196,23 @@ const Caisse = () => {
         : "";
       const matchesSearch =
         item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.par?.toLowerCase().includes(searchTerm.toLowerCase());
+        item.par?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.idClient?.nom?.toLowerCase().includes(searchTerm.toLowerCase());
+
       const matchesDateDebut = dateDebut ? itemDate >= dateDebut : true;
       const matchesDateFin = dateFin ? itemDate <= dateFin : true;
       return matchesSearch && matchesDateDebut && matchesDateFin;
     });
 
-    // Le bilan se base toujours sur l'historique global pour la cohérence
     const totals = historiqueCaisse.reduce(
       (acc, curr) => {
         const itemDate = curr.date
           ? new Date(curr.date).toISOString().split("T")[0]
           : "";
-        const inDateRange =
+        if (
           (dateDebut ? itemDate >= dateDebut : true) &&
-          (dateFin ? itemDate <= dateFin : true);
-
-        if (inDateRange) {
+          (dateFin ? itemDate <= dateFin : true)
+        ) {
           const amount = Number(curr.montant) || 0;
           const isOut =
             curr.typeOperation === "Debit" || curr.typeOperation === "Retrait";
@@ -208,6 +230,7 @@ const Caisse = () => {
     historiqueCaisse,
     versementsAgent,
     rechargesCaisse,
+    versementsClient,
     searchTerm,
     dateDebut,
     dateFin,
@@ -215,8 +238,11 @@ const Caisse = () => {
 
   if (isLoading)
     return (
-      <div className="h-96 flex items-center justify-center animate-spin">
-        <div className="size-10 border-4 border-red-500 border-t-transparent rounded-full"></div>
+      <div className="h-96 flex flex-col items-center justify-center gap-4 animate-fadeIn">
+        <div className="size-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+          Synchronisation...
+        </p>
       </div>
     );
 
@@ -226,11 +252,19 @@ const Caisse = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl">
           <div className="relative z-10">
-            <div className="flex items-center gap-2 text-slate-400 mb-4">
-              <Wallet size={18} />
-              <span className="text-xs font-black uppercase tracking-widest">
-                Caisse Centrale
-              </span>
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-2 text-slate-400 mb-4">
+                <Wallet size={18} />
+                <span className="text-xs font-black uppercase tracking-widest">
+                  Caisse Centrale
+                </span>
+              </div>
+              <button
+                onClick={fetchData}
+                className="p-2 bg-white/5 hover:bg-white/10 rounded-full transition-all text-slate-400 hover:text-white"
+              >
+                <RefreshCw size={16} />
+              </button>
             </div>
             <h1 className="text-5xl font-black text-green-500">
               {balances.solde?.toLocaleString()}{" "}
@@ -251,7 +285,6 @@ const Caisse = () => {
               </button>
             </div>
           </div>
-          <div className="absolute -right-10 -top-10 size-64 bg-red-500/10 rounded-full blur-3xl"></div>
         </div>
 
         <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm flex flex-col justify-between">
@@ -284,7 +317,7 @@ const Caisse = () => {
       {/* FILTRES & TABS */}
       <div className="space-y-6 bg-white p-6 rounded-[2rem] border border-slate-50 shadow-sm">
         <div className="flex flex-col md:flex-row justify-between gap-6">
-          <div className="flex gap-6 border-b">
+          <div className="flex gap-6 border-b overflow-x-auto no-scrollbar">
             {[
               {
                 id: "historique",
@@ -293,16 +326,21 @@ const Caisse = () => {
               },
               { id: "agents", label: "Agents", icon: <Users size={14} /> },
               {
+                id: "versements_client",
+                label: "Versements Clients",
+                icon: <UserCheck size={14} />,
+              },
+              {
                 id: "recharges",
                 label: "Recharges",
                 icon: <PlusCircle size={14} />,
-              }, // Ajouté
+              },
               { id: "bilan", label: "Bilan", icon: <PieChart size={14} /> },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`pb-4 text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all ${
+                className={`pb-4 text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all whitespace-nowrap ${
                   activeTab === tab.id
                     ? "border-b-2 border-red-500 text-slate-900"
                     : "text-slate-400 hover:text-slate-600"
@@ -314,26 +352,19 @@ const Caisse = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="date"
+              value={dateDebut}
+              onChange={(e) => setDateDebut(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border-none rounded-xl text-[10px] font-bold outline-none"
+            />
+            <input
+              type="date"
+              value={dateFin}
+              onChange={(e) => setDateFin(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border-none rounded-xl text-[10px] font-bold outline-none"
+            />
             <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 size-3 text-slate-400" />
-              <input
-                type="date"
-                value={dateDebut}
-                onChange={(e) => setDateDebut(e.target.value)}
-                className="pl-8 pr-3 py-2 bg-slate-50 border-none rounded-xl text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-500"
-              />
-            </div>
-            <span className="text-slate-300 text-xs">au</span>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 size-3 text-slate-400" />
-              <input
-                type="date"
-                value={dateFin}
-                onChange={(e) => setDateFin(e.target.value)}
-                className="pl-8 pr-3 py-2 bg-slate-50 border-none rounded-xl text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-500"
-              />
-            </div>
-            <div className="relative ml-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3 text-slate-400" />
               <input
                 type="text"
@@ -346,132 +377,29 @@ const Caisse = () => {
           </div>
         </div>
 
-        {/* CONTENU BILAN (RESTAURÉ) */}
         {activeTab === "bilan" ? (
-          <div className="space-y-8 animate-fadeIn">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  Solde Initial
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Total Sorties
+              </span>
+              <div className="flex items-baseline gap-2 mt-2">
+                <span className="text-3xl font-black text-red-500">
+                  {stats.debit.toLocaleString()}
                 </span>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-3xl font-black text-slate-900">0</span>
-                  <span className="text-xs font-bold text-slate-400">MRU</span>
-                </div>
-                <span className="text-[9px] font-black text-slate-300 uppercase mt-1 block">
-                  Report
-                </span>
-              </div>
-
-              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  Total Sorties
-                </span>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-3xl font-black text-red-500">
-                    {stats.debit.toLocaleString()}
-                  </span>
-                  <span className="text-xs font-bold text-red-500">MRU</span>
-                </div>
-                <span className="text-[9px] font-black text-slate-300 uppercase mt-1 block">
-                  Débit (-)
-                </span>
-              </div>
-
-              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  Total Entrées
-                </span>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-3xl font-black text-emerald-500">
-                    {stats.credit.toLocaleString()}
-                  </span>
-                  <span className="text-xs font-bold text-emerald-500">
-                    MRU
-                  </span>
-                </div>
-                <span className="text-[9px] font-black text-slate-300 uppercase mt-1 block">
-                  Crédit (+)
-                </span>
-              </div>
-
-              <div className="bg-[#0f172a] p-6 rounded-[2rem] text-white shadow-xl">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  Balance Période
-                </span>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-3xl font-black">
-                    {(stats.credit - stats.debit).toLocaleString()}
-                  </span>
-                  <span className="text-xs font-bold opacity-60">MRU</span>
-                </div>
-                <span className="text-[9px] font-black text-slate-500 uppercase mt-1 block">
-                  Résultat
-                </span>
+                <span className="text-xs font-bold text-red-500">MRU</span>
               </div>
             </div>
-
-            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-              <table className="w-full max-h-[500px] overflow-y-auto text-left border-collapse">
-                <thead>
-                  <tr className="text-[10px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-50">
-                    <th className="px-8 py-6">Date</th>
-                    <th className="px-8 py-6">Désignation</th>
-                    <th className="px-8 py-6 text-right">Débit (-)</th>
-                    <th className="px-8 py-6 text-right">Crédit (+)</th>
-                  </tr>
-                </thead>
-                <tbody className="text-[11px] font-bold text-slate-600">
-                  <tr className="border-b border-slate-50/50">
-                    <td className="px-8 py-5 text-slate-400 uppercase tracking-tighter">
-                      Report
-                    </td>
-                    <td className="px-8 py-5 text-slate-400 uppercase tracking-tighter">
-                      Solde antérieur au {dateDebut || "..."}
-                    </td>
-                    <td className="px-8 py-5 text-right">0</td>
-                    <td className="px-8 py-5 text-right">-</td>
-                  </tr>
-                  {filteredData.map((item, idx) => {
-                    const isDebit =
-                      item.typeOperation === "Debit" ||
-                      item.typeOperation === "Retrait";
-                    return (
-                      <tr
-                        key={idx}
-                        className="border-b border-slate-50/50 hover:bg-slate-50/30 transition-colors"
-                      >
-                        <td className="px-8 py-4 text-slate-400">
-                          {new Date(item.date).toLocaleDateString()}
-                        </td>
-                        <td className="px-8 py-4 uppercase text-slate-700">
-                          {item.description}
-                        </td>
-                        <td className="px-8 py-4 text-right font-black text-red-500">
-                          {isDebit ? item.montant?.toLocaleString() : "-"}
-                        </td>
-                        <td className="px-8 py-4 text-right font-black text-emerald-600">
-                          {!isDebit ? item.montant?.toLocaleString() : "-"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  <tr className="bg-[#0f172a] text-white">
-                    <td
-                      colSpan="2"
-                      className="px-8 py-6 text-xs font-black uppercase tracking-widest text-slate-200"
-                    >
-                      Total Période
-                    </td>
-                    <td className="px-8 py-6 text-right text-sm font-black text-red-400">
-                      - {stats.debit.toLocaleString()}
-                    </td>
-                    <td className="px-8 py-6 text-right text-sm font-black text-emerald-400">
-                      + {stats.credit.toLocaleString()}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Total Entrées
+              </span>
+              <div className="flex items-baseline gap-2 mt-2">
+                <span className="text-3xl font-black text-emerald-500">
+                  {stats.credit.toLocaleString()}
+                </span>
+                <span className="text-xs font-bold text-emerald-500">MRU</span>
+              </div>
             </div>
           </div>
         ) : (
@@ -481,24 +409,23 @@ const Caisse = () => {
                 <tr className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-widest">
                   <th className="px-6 py-4">Date & Heure</th>
                   <th className="px-6 py-4">
-                    {activeTab === "historique" ? "Description" : "Nom AGENT"}
+                    {activeTab === "historique"
+                      ? "Description"
+                      : activeTab === "versements_client"
+                      ? "Client"
+                      : "Agent"}
                   </th>
-
                   <th className="px-6 py-4">Montant</th>
-                  <th className="px-6 py-4">
-                    {activeTab === "historique" ? "Catégorie" : "Auteur"}
-                  </th>
-                  {(activeTab === "agents" || activeTab === "recharges") && (
-                    <th className="px-6 py-4 w-20">Actions</th>
-                  )}
+                  <th className="px-6 py-4">Auteur / Cat.</th>
+                  <th className="px-6 py-4">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {filteredData.map((item, idx) => {
-                  const isNegativeStyle =
-                    activeTab === "agents" ||
+                  const isDebit =
                     item.typeOperation === "Debit" ||
-                    item.typeOperation === "Retrait";
+                    item.typeOperation === "Retrait" ||
+                    activeTab === "agents";
                   return (
                     <tr
                       key={idx}
@@ -512,43 +439,49 @@ const Caisse = () => {
                           {new Date(item.date).toLocaleTimeString()}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-[11px] font-bold text-slate-600 max-w-xs">
-                        {
-                          activeTab === "historique"
-                            ? item.description || "Aucune description" // Affiche la description
-                            : item.idUser?.nom || "N/A" // Sinon affiche le nom de l'agent
-                        }
+                      <td className="px-6 py-4 text-[11px] font-bold text-slate-600">
+                        {activeTab === "versements_client"
+                          ? item.idClient?.nom || "Client"
+                          : item.description || item.idUser?.nom || "N/A"}
                       </td>
                       <td
                         className={`px-6 py-4 text-[11px] font-black ${
-                          isNegativeStyle ? "text-red-500" : "text-emerald-600"
+                          isDebit ? "text-red-500" : "text-emerald-600"
                         }`}
                       >
-                        {isNegativeStyle ? "-" : "+"}{" "}
-                        {item.montant?.toLocaleString()}
+                        {isDebit ? "-" : "+"} {item.montant?.toLocaleString()}
                       </td>
                       <td className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase">
-                        {activeTab === "historique"
-                          ? item.categorie || "N/A"
-                          : item.par || "Système"}
+                        {item.par || item.categorie || "Système"}
                       </td>
-                      {(activeTab === "agents" ||
-                        activeTab === "recharges") && (
-                        <td className="px-6 py-4 flex gap-2">
-                          <button
-                            onClick={() => openEditModal(item)}
-                            className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                          <button
-                            onClick={() => openDeleteModal(item)}
-                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      )}
+                      <td className="px-6 py-4">
+                        <div className="flex gap-2">
+                          {activeTab === "versements_client" && (
+                            <button
+                              onClick={() => handlePrint(item)}
+                              className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                            >
+                              <Printer size={14} />
+                            </button>
+                          )}
+                          {activeTab !== "historique" && (
+                            <>
+                              <button
+                                onClick={() => openEditModal(item)}
+                                className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                onClick={() => openDeleteModal(item)}
+                                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -558,7 +491,7 @@ const Caisse = () => {
         )}
       </div>
 
-      {/* --- MODALS --- */}
+      {/* MODALS */}
       <Modal
         isOpen={isDepositOpen}
         onClose={() => setIsDepositOpen(false)}
@@ -581,54 +514,52 @@ const Caisse = () => {
         />
       </Modal>
 
-      {/* MODAL ÉDITION (PARTAGÉ AGENTS / RECHARGES) */}
+      <Modal
+        isOpen={isEditClientOpen}
+        onClose={() => setIsEditClientOpen(false)}
+        title="Modifier Versement Client"
+      >
+        <EditVersementClientForm
+          versement={selectedTransaction}
+          onClose={() => setIsEditClientOpen(false)}
+          onSuccess={fetchData}
+        />
+      </Modal>
+
       <Modal
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
         title="Modifier la transaction"
       >
         <form onSubmit={handleEdit} className="p-6 space-y-4">
-          <div>
-            <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">
-              Montant (MRU)
-            </label>
-            <input
-              type="number"
-              value={editFormData.montant}
-              onChange={(e) =>
-                setEditFormData({ ...editFormData, montant: e.target.value })
-              }
-              className="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">
-              Description
-            </label>
-            <textarea
-              value={editFormData.description}
-              onChange={(e) =>
-                setEditFormData({
-                  ...editFormData,
-                  description: e.target.value,
-                })
-              }
-              className="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500 h-24 resize-none"
-              required
-            />
-          </div>
-          <div className="flex gap-3 pt-2">
+          <input
+            type="number"
+            value={editFormData.montant}
+            onChange={(e) =>
+              setEditFormData({ ...editFormData, montant: e.target.value })
+            }
+            className="w-full px-4 py-3 bg-slate-50 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          />
+          <textarea
+            value={editFormData.description}
+            onChange={(e) =>
+              setEditFormData({ ...editFormData, description: e.target.value })
+            }
+            className="w-full px-4 py-3 bg-slate-50 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500 h-24 resize-none"
+            required
+          />
+          <div className="flex gap-3">
             <button
               type="button"
               onClick={() => setIsEditOpen(false)}
-              className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+              className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 bg-blue-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg shadow-blue-100"
+              className="flex-1 py-3 bg-blue-500 text-white rounded-xl font-black text-[10px] uppercase"
             >
               Enregistrer
             </button>
@@ -636,7 +567,6 @@ const Caisse = () => {
         </form>
       </Modal>
 
-      {/* MODAL SUPPRESSION (PARTAGÉ AGENTS / RECHARGES) */}
       <Modal
         isOpen={isDeleteOpen}
         onClose={() => setIsDeleteOpen(false)}
@@ -651,33 +581,21 @@ const Caisse = () => {
               <p className="text-xs font-black text-red-800 uppercase">
                 Attention !
               </p>
-              <p className="text-[11px] text-red-600 font-bold leading-tight">
-                Cette action est irréversible. Le montant sera réajusté dans les
-                soldes.
+              <p className="text-[11px] text-red-600 font-bold">
+                Cette action est irréversible.
               </p>
             </div>
-          </div>
-          <div className="text-center">
-            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">
-              Transaction de
-            </p>
-            <p className="text-2xl font-black text-slate-900">
-              {selectedTransaction?.montant?.toLocaleString()} MRU
-            </p>
-            <p className="text-[10px] text-slate-400 font-bold italic mt-1">
-              "{selectedTransaction?.description}"
-            </p>
           </div>
           <div className="flex gap-3">
             <button
               onClick={() => setIsDeleteOpen(false)}
-              className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+              className="flex-1 py-4 bg-slate-100 rounded-xl font-black text-[10px] uppercase"
             >
               Annuler
             </button>
             <button
               onClick={handleDelete}
-              className="flex-1 py-4 bg-[#EF233C] text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-[#D90429] transition-all shadow-xl shadow-red-100"
+              className="flex-1 py-4 bg-[#EF233C] text-white rounded-xl font-black text-[10px] uppercase"
             >
               Confirmer
             </button>

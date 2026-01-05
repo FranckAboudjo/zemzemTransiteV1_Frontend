@@ -83,10 +83,10 @@ export const API_PATHS = {
 
   VERSEMENTCLIENT: {
     CREATE_VERSEMENT_CLIENT: "/versements-client/add/:idUser",
-    GET_ALL_VERSEMENT_CLIENT: "/versements-client/",
+    GET_ALL_VERSEMENT_CLIENT: "/versements-client/all",
     GET_ONE_VERSEMENT_CLIENT: "/versements-client/:id", //id du versement
-    UPDATE_VERSEMENT_CLIENT: "/versements-client/:id", //id du client
-    DELETE_VERSEMENT_CLIENT: "/versements-client/:id", //id du versement
+    UPDATE_VERSEMENT_CLIENT: "/versements-client/update/:id", //id du client
+    DELETE_VERSEMENT_CLIENT: "/versements-client/delete/:id", //id du versement
   },
 
   VERSEMENTAGENT: {
@@ -150,5 +150,13 @@ export const API_PATHS = {
     GET_ONE_LIQUIDATION_ESPECES: "/liquidations/list/regulees", //id de la liquidation
     GET_ALL_LIQUIDATION: "/liquidations/", //id de la liquidation
     ANNULER_LIQUIDATION: "/liquidations/annuler/:id_bl/:id_charge", //id de la liquidation
+  },
+
+  RETRAIT_CLIENT: {
+    CREATE_RETRAIT_CLIENT: "/retrait-client/:id", //id du client
+    GET_ALL_RETRAIT_CLIENT: "/retrait-client/",
+    GET_ONE_RETRAIT_CLIENT: "/retrait-client/:id", //id du retrait
+    UPDATE_RETRAIT_CLIENT: "/retrait-client/:id", //id du client
+    DELETE_RETRAIT_CLIENT: "/retrait-client/:id", //id du retrait
   },
 };

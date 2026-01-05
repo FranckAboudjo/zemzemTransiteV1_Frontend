@@ -1,3 +1,4 @@
+// AuthContext.js
 import React, {
   createContext,
   useContext,
@@ -5,7 +6,6 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import { io } from "socket.io-client";
 import API from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 
@@ -15,67 +15,46 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [socket, setSocket] = useState(null);
 
-  // --- LOGIQUE SOCKET.IO ---
-  const connectSocket = useCallback(
-    (userId) => {
-      if (socket || !userId) return; // Sécurité si userId est null
-
-      const socketUrl =
-        import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:5000";
-
-      const newSocket = io(socketUrl, {
-        withCredentials: true,
-        transports: ["websocket"],
-        reconnectionAttempts: 5,
-        reconnectionDelay: 5000,
-      });
-
-      newSocket.on("connect", () => {
-        console.log("🚀 Socket connecté:", newSocket.id);
-        newSocket.emit("join_room", userId);
-      });
-
-      newSocket.on("connect_error", (err) => {
-        console.error("❌ Erreur Socket.io:", err.message);
-      });
-
-      setSocket(newSocket);
-    },
-    [socket]
-  );
-
-  const disconnectSocket = useCallback(() => {
-    if (socket) {
-      socket.disconnect();
-      setSocket(null);
-    }
-  }, [socket]);
-
-  // --- NORMALISATION DE L'UTILISATEUR ---
-  // Cette fonction s'assure que l'utilisateur possède toujours un _id
   const normalizeUser = (userData) => {
     if (!userData) return null;
-    return {
-      ...userData,
-      _id: userData._id || userData.id, // Map 'id' vers '_id' si nécessaire
-    };
+    return { ...userData, _id: userData._id || userData.id };
   };
 
-  // --- LOGIQUE AUTHENTIFICATION ---
+  // On utilise useCallback pour pouvoir l'appeler dans l'intercepteur plus tard
+  const logout = useCallback(async () => {
+    try {
+      // Vérifiez si votre backend attend un POST ou un GET
+      // Si la route n'existe pas encore, cette ligne génère la 404
+      await API.post(API_PATHS.AUTH.LOGOUT);
+    } catch (error) {
+      // On log l'erreur mais on ne bloque pas l'utilisateur
+      console.warn(
+        "Le serveur n'a pas pu traiter la déconnexion (route inexistante ?)"
+      );
+    } finally {
+      // Nettoyage local obligatoire
+      localStorage.removeItem("_appTransit_user");
+      setUser(null);
+      setIsAuthenticated(false);
+      window.location.href = "/login";
+    }
+  }, []);
+
   const checkAuthStatus = async () => {
     const userStr = localStorage.getItem("_appTransit_user");
-    if (userStr) {
-      try {
-        const rawUser = JSON.parse(userStr);
-        const storedUser = normalizeUser(rawUser); // NORMALISATION
 
-        setUser(storedUser);
-        setIsAuthenticated(true);
-        connectSocket(storedUser._id);
+    if (userStr) {
+      const rawUser = JSON.parse(userStr);
+      setUser(normalizeUser(rawUser));
+      setIsAuthenticated(true);
+
+      // On vérifie quand même la session en arrière-plan sans bloquer
+      try {
+        await API.get(API_PATHS.AUTH.ME);
       } catch (error) {
-        logout();
+        console.error("Session invalide sur le serveur");
+        logout(); // Déconnecte seulement si le serveur confirme que la session est morte
       }
     }
     setLoading(false);
@@ -83,31 +62,16 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     checkAuthStatus();
-    return () => disconnectSocket();
-  }, []);
+  }, [logout]);
 
   const login = (userData) => {
-    const normalized = normalizeUser(userData); // NORMALISATION
+    const normalized = normalizeUser(userData);
     localStorage.setItem("_appTransit_user", JSON.stringify(normalized));
     setUser(normalized);
     setIsAuthenticated(true);
-    connectSocket(normalized._id);
   };
 
-  const logout = async () => {
-    try {
-      await API.get(API_PATHS.AUTH.LOGOUT);
-    } catch (error) {
-      console.error("Erreur déconnexion:", error);
-    } finally {
-      disconnectSocket();
-      localStorage.removeItem("_appTransit_user");
-      setUser(null);
-      setIsAuthenticated(false);
-    }
-  };
-
-  const value = { user, loading, isAuthenticated, socket, login, logout };
+  const value = { user, loading, isAuthenticated, login, logout };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

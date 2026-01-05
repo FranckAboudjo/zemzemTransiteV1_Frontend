@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom"; // Retrait de useParams
+import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Calendar,
   User,
   ShieldCheck,
   ShieldAlert,
-  Download,
-  Mail,
   ArrowUpRight,
   ArrowDownLeft,
   IdCard,
   UserCheck,
   Landmark,
   Wallet,
+  Clock,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import API from "../../utils/axiosInstance";
@@ -35,23 +34,51 @@ const Profile = () => {
     isDangerous: false,
   });
 
+  // Fonctions de déclenchement (Stubs à adapter selon vos fonctions parentes si nécessaire)
+  const triggerResetPassword = () => {
+    setConfirmConfig({
+      show: true,
+      title: "Réinitialiser ?",
+      message: "Le mot de passe sera remis par défaut (Test1234).",
+      isDangerous: false,
+      action: async () => {
+        setIsProcessing(true);
+        // Votre logique API ici
+        setIsProcessing(false);
+        setConfirmConfig({ ...confirmConfig, show: false });
+      },
+    });
+  };
+
+  const triggerToggleRestriction = () => {
+    setConfirmConfig({
+      show: true,
+      title: user.restriction ? "Réactiver ?" : "Restreindre ?",
+      message: user.restriction
+        ? "L'agent pourra de nouveau se connecter."
+        : "L'agent sera déconnecté immédiatement.",
+      isDangerous: !user.restriction,
+      action: async () => {
+        setIsProcessing(true);
+        // Votre logique API ici
+        setIsProcessing(false);
+        setConfirmConfig({ ...confirmConfig, show: false });
+      },
+    });
+  };
+
   const fetchData = async () => {
     try {
       setIsLoading(true);
-
-      // 1. Récupération de l'ID depuis votre clé LocalStorage spécifique
       const storedData = localStorage.getItem("_appTransit_user");
-
       if (!storedData) {
         toast.error("Session expirée, veuillez vous reconnecter.");
         navigate("/login");
         return;
       }
-
       const parsedData = JSON.parse(storedData);
-      const currentUserId = parsedData.id; // Utilisation de .id selon votre JSON
+      const currentUserId = parsedData.id;
 
-      // 2. Chargement des données via API pour avoir les infos complètes (solde, etc.)
       const resUser = await API.get(
         API_PATHS.USERS.GET_ONE_USER.replace(":id", currentUserId)
       );
@@ -76,35 +103,37 @@ const Profile = () => {
   if (isLoading) return <LoadingState />;
   if (!user)
     return (
-      <div className="p-10 text-center font-bold">Profil introuvable.</div>
+      <div className="p-10 text-center font-bold text-slate-500 uppercase text-xs tracking-widest">
+        Profil introuvable.
+      </div>
     );
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] p-4 md:p-8 animate-fadeIn">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="min-h-screen bg-[#F8F9FA] p-3 md:p-8 animate-fadeIn pb-24">
+      <div className="max-w-6xl mx-auto space-y-4 md:space-y-6">
         {/* --- HEADER PROFIL --- */}
-        <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl shadow-slate-200/50 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-40 h-40 bg-slate-900/5 rounded-full -mr-20 -mt-20" />
+        <div className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-8 border border-slate-100 shadow-xl shadow-slate-200/50 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 md:w-40 md:h-40 bg-slate-900/5 rounded-full -mr-16 -mt-16" />
 
-          <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-8">
-            <div className="flex items-center gap-6">
-              <div className="size-24 rounded-[2rem] bg-[#EF233C] flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-red-500/30">
+          <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start lg:items-center gap-4 md:gap-6 text-center sm:text-left">
+              <div className="size-20 md:size-24 rounded-[1.5rem] md:rounded-[2rem] bg-[#EF233C] flex items-center justify-center text-white text-2xl md:text-3xl font-black shadow-lg shadow-red-500/30 shrink-0">
                 {user.nom?.charAt(0)}
                 {user.prenoms?.charAt(0)}
               </div>
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-col sm:flex-row items-center gap-2 md:gap-3">
+                  <h1 className="text-lg md:text-xl font-black text-slate-900 uppercase tracking-tight leading-tight">
                     {user.prenoms} {user.nom}
                   </h1>
                   <StatusBadge isRestricted={user.restriction} />
                 </div>
-                <div className="flex flex-wrap gap-4">
-                  <span className="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase">
+                <div className="flex flex-wrap justify-center sm:justify-start gap-3 md:gap-4">
+                  <span className="flex items-center gap-1.5 text-[10px] md:text-xs font-bold text-slate-400 uppercase">
                     <UserCheck size={14} className="text-[#EF233C]" />{" "}
                     {user.role}
                   </span>
-                  <span className="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase">
+                  <span className="flex items-center gap-1.5 text-[10px] md:text-xs font-bold text-slate-400 uppercase">
                     <IdCard size={14} className="text-[#EF233C]" /> @
                     {user.username}
                   </span>
@@ -112,16 +141,23 @@ const Profile = () => {
               </div>
             </div>
 
-            <div className="bg-slate-900 rounded-3xl p-6 min-w-[260px] text-white shadow-2xl shadow-slate-900/30 border border-slate-800">
-              <div className="flex items-center gap-2 mb-3">
+            <div className="bg-slate-900 rounded-2xl md:rounded-3xl p-5 md:p-6 w-full lg:min-w-[260px] lg:w-auto text-white shadow-2xl shadow-slate-900/30 border border-slate-800 relative">
+              {/* Bouton de gestion intégré au solde sur mobile pour gagner de la place */}
+              <button
+                onClick={() => setShowManageModal(true)}
+                className="absolute top-4 right-4 p-2 bg-slate-800 rounded-lg hover:bg-[#EF233C] transition-colors"
+              >
+                <ShieldCheck size={16} />
+              </button>
+              <div className="flex items-center gap-2 mb-2 md:mb-3">
                 <Wallet size={14} className="text-[#EF233C]" />
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">
                   Solde Actuel
                 </p>
               </div>
-              <p className="text-4xl font-black">
+              <p className="text-3xl md:text-4xl font-black">
                 {user.compte?.montant?.toLocaleString()}
-                <span className="text-sm font-medium text-slate-500 ml-2 uppercase">
+                <span className="text-xs md:text-sm font-medium text-slate-500 ml-2 uppercase">
                   Mru
                 </span>
               </p>
@@ -129,10 +165,10 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* --- TABS --- */}
-        <div className="flex gap-8 border-b border-slate-200 px-6">
+        {/* --- TABS --- (Scrollable sur mobile) */}
+        <div className="flex gap-4 md:gap-8 border-b border-slate-200 px-4 md:px-6 overflow-x-auto no-scrollbar whitespace-nowrap">
           <TabButton
-            label="Historique des Opérations"
+            label="Historique"
             active={activeTab === "transactions"}
             onClick={() => setActiveTab("transactions")}
           />
@@ -146,144 +182,61 @@ const Profile = () => {
         {/* --- CONTENT --- */}
         <div className="transition-all duration-300">
           {activeTab === "transactions" ? (
-            <div className="bg-white rounded-[2rem] border  border-slate-100 shadow-sm max-h-[600px] overflow-y-auto">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-50/50 text-[10px] font-black uppercase text-slate-400">
-                  <tr>
-                    <th className="px-8 py-5">Date & Heure</th>
-                    <th className="px-8 py-5">Désignation de l'opération</th>
-                    <th className="px-8 py-5 text-right">Montant</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {transactions.length > 0 ? (
-                    transactions.map((t) => {
-                      const isPositive =
-                        t.type === "Rechargement" || t.type === "Remboursement";
+            <div className="space-y-3">
+              {/* Desktop Table View */}
+              <div className="hidden md:block bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+                <div className="max-h-[600px] overflow-y-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-50/50 text-[10px] font-black uppercase text-slate-400 sticky top-0 z-10">
+                      <tr>
+                        <th className="px-8 py-5">Date & Heure</th>
+                        <th className="px-8 py-5">Désignation</th>
+                        <th className="px-8 py-5 text-right">Montant</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {transactions.map((t) => (
+                        <DesktopRow key={t._id} t={t} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-                      return (
-                        <tr
-                          key={t._id}
-                          className="hover:bg-slate-50/50 transition-colors group"
-                        >
-                          <td className="px-8 py-6">
-                            <div className="flex items-center gap-4">
-                              <div
-                                className={`p-2.5 rounded-2xl transition-transform group-hover:scale-110 ${
-                                  isPositive
-                                    ? "bg-emerald-50 text-emerald-600"
-                                    : "bg-red-50 text-red-600"
-                                }`}
-                              >
-                                {isPositive ? (
-                                  <ArrowDownLeft size={18} />
-                                ) : (
-                                  <ArrowUpRight size={18} />
-                                )}
-                              </div>
-                              <div>
-                                <p className="text-xs font-black text-slate-800">
-                                  {new Date(t.date).toLocaleDateString(
-                                    "fr-FR",
-                                    {
-                                      day: "2-digit",
-                                      month: "short",
-                                      year: "numeric",
-                                    }
-                                  )}
-                                </p>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
-                                  {new Date(t.date).toLocaleTimeString(
-                                    "fr-FR",
-                                    {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    }
-                                  )}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-8 py-6">
-                            <p className="text-sm font-black text-slate-800 uppercase tracking-tight">
-                              {t.description}
-                            </p>
-                            <div className="flex items-center gap-2 mt-1.5">
-                              <span
-                                className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase border ${
-                                  isPositive
-                                    ? "border-emerald-200 text-emerald-600 bg-emerald-50"
-                                    : "border-slate-200 text-slate-500 bg-slate-50"
-                                }`}
-                              >
-                                {t.type}
-                              </span>
-                              {t.id_bl && (
-                                <span className="text-[10px] font-bold text-[#EF233C] bg-red-50 px-2 py-0.5 rounded-full">
-                                  DOSSIER: {t.id_bl?.numBl}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td
-                            className={`px-8 py-6 text-right font-black text-base ${
-                              isPositive ? "text-emerald-600" : "text-red-600"
-                            }`}
-                          >
-                            <div className="flex flex-col items-end">
-                              <span className="flex items-center gap-1">
-                                {isPositive ? "+" : "-"}{" "}
-                                {Math.abs(t.montant)?.toLocaleString()}{" "}
-                                <small className="text-[10px]">MRU</small>
-                              </span>
-                              <span className="text-[9px] text-slate-300 font-bold mt-1 uppercase tracking-tighter">
-                                Nouveau Solde: {t.soldeApres?.toLocaleString()}
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan="3" className="py-24 text-center">
-                        <div className="flex flex-col items-center opacity-20">
-                          <Wallet size={48} className="mb-2" />
-                          <p className="text-xs font-black uppercase tracking-widest text-slate-400">
-                            Aucune operation enregistrée
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+              {/* Mobile List View */}
+              <div className="md:hidden space-y-3">
+                {transactions.length > 0 ? (
+                  transactions.map((t) => <MobileCard key={t._id} t={t} />)
+                ) : (
+                  <EmptyState />
+                )}
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
-              <div className="md:col-span-2 bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm">
-                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-10 flex items-center gap-2">
-                  <User size={18} className="text-[#EF233C]" /> Profil de
-                  l'utilisateur
+              <div className="md:col-span-2 bg-white rounded-[1.5rem] md:rounded-[2rem] p-6 md:p-8 border border-slate-100 shadow-sm">
+                <h3 className="text-xs md:text-sm font-black text-slate-900 uppercase tracking-widest mb-8 md:mb-10 flex items-center gap-2">
+                  <User size={18} className="text-[#EF233C]" /> Informations
+                  Profil
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-y-10 gap-x-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-8 md:gap-y-10 gap-x-8 text-center sm:text-left">
                   <InfoBlock
-                    label="Nom et Prénoms"
+                    label="Nom Complet"
                     value={`${user.nom} ${user.prenoms}`}
                     icon={<User size={16} />}
                   />
                   <InfoBlock
-                    label="Login Système"
+                    label="Identifiant"
                     value={user.username}
                     icon={<IdCard size={16} />}
                   />
                   <InfoBlock
-                    label="Rôle / Permission"
+                    label="Permissions"
                     value={user.role}
                     icon={<Landmark size={16} />}
                   />
                   <InfoBlock
-                    label="Date de création"
+                    label="Membre depuis"
                     value={new Date(user.dateCreation).toLocaleDateString()}
                     icon={<Calendar size={16} />}
                   />
@@ -294,152 +247,92 @@ const Profile = () => {
         </div>
       </div>
 
-      {/* --- MODAL DE GESTION --- */}
+      {/* --- MODAL GESTION (Responsive) --- */}
       {showManageModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl border border-slate-100">
-            <div className="p-8">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-t-[2rem] sm:rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl animate-slideUp sm:animate-fadeIn">
+            <div className="p-6 md:p-8">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">
+                <h3 className="text-base md:text-lg font-black text-slate-900 uppercase tracking-tight">
                   Sécurité Compte
                 </h3>
                 <button
                   onClick={() => setShowManageModal(false)}
-                  className="text-slate-400 hover:text-slate-600"
+                  className="size-10 flex items-center justify-center bg-slate-100 rounded-full text-slate-400"
                 >
-                  <ArrowLeft size={20} />
+                  <ArrowLeft size={18} />
                 </button>
               </div>
-
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-8">
-                Actions disponibles pour {user.nom}
-              </p>
-
-              <div className="space-y-4">
-                {/* CORRECTION: Appel de triggerResetPassword */}
-                <button
-                  disabled={isProcessing}
+              <div className="space-y-3 md:space-y-4">
+                <ModalButton
+                  icon={<ShieldCheck size={20} />}
+                  title="Reset Password"
+                  desc="Défaut: Test1234"
+                  color="blue"
                   onClick={triggerResetPassword}
-                  className="w-full flex items-center justify-between p-5 bg-slate-50 hover:bg-slate-100 rounded-2xl transition-all group"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-blue-100 text-blue-600 rounded-xl group-hover:scale-110 transition-transform">
+                />
+                <ModalButton
+                  icon={
+                    user.restriction ? (
                       <ShieldCheck size={20} />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-black text-slate-800 uppercase">
-                        Réinitialiser le mot de passe
-                      </p>
-                      <p className="text-[14px] text-slate-400 font-bold ">
-                        Défaut:{" "}
-                        <span className="text-slate-800"> Test1234</span>
-                      </p>
-                    </div>
-                  </div>
-                  <ArrowUpRight size={18} className="text-slate-300" />
-                </button>
-
-                {/* CORRECTION: Appel de triggerToggleRestriction */}
-                <button
-                  disabled={isProcessing}
+                    ) : (
+                      <ShieldAlert size={20} />
+                    )
+                  }
+                  title={user.restriction ? "Réactiver" : "Restreindre"}
+                  desc={
+                    user.restriction ? "Rétablir les accès" : "Bloquer l'accès"
+                  }
+                  color={user.restriction ? "emerald" : "red"}
                   onClick={triggerToggleRestriction}
-                  className={`w-full flex items-center justify-between p-5 rounded-2xl transition-all group ${
-                    user.restriction
-                      ? "bg-emerald-50 hover:bg-emerald-100 border border-emerald-100"
-                      : "bg-red-50 hover:bg-red-100 border border-red-100"
-                  }`}
-                >
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={`p-3 rounded-xl group-hover:scale-110 transition-transform ${
-                        user.restriction
-                          ? "bg-emerald-100 text-emerald-600"
-                          : "bg-red-100 text-red-600"
-                      }`}
-                    >
-                      {user.restriction ? (
-                        <ShieldCheck size={20} />
-                      ) : (
-                        <ShieldAlert size={20} />
-                      )}
-                    </div>
-                    <div className="text-left">
-                      <p
-                        className={`text-sm font-black uppercase ${
-                          user.restriction ? "text-emerald-800" : "text-red-800"
-                        }`}
-                      >
-                        {user.restriction
-                          ? "Réactiver le compte"
-                          : "Restreindre le compte"}
-                      </p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">
-                        {user.restriction
-                          ? "L'agent retrouvera ses accès"
-                          : "L'agent ne pourra plus se connecter"}
-                      </p>
-                    </div>
-                  </div>
-                  <ArrowUpRight
-                    size={18}
-                    className={
-                      user.restriction ? "text-emerald-300" : "text-red-300"
-                    }
-                  />
-                </button>
+                />
               </div>
-
               <button
                 onClick={() => setShowManageModal(false)}
-                className="w-full mt-8 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest hover:text-slate-600 transition-colors"
+                className="w-full mt-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]"
               >
-                Fermer la fenêtre
+                Fermer
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* --- MODALE DE CONFIRMATION PERSONNALISÉE --- */}
+      {/* --- CONFIRMATION MODAL --- */}
       {confirmConfig.show && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-fadeIn">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 p-8 text-center">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+          <div className="bg-white rounded-[2rem] w-full max-w-xs overflow-hidden p-6 md:p-8 text-center shadow-2xl border border-slate-100 animate-fadeIn">
             <div
-              className={`mx-auto size-16 rounded-2xl flex items-center justify-center mb-6 ${
+              className={`mx-auto size-14 rounded-2xl flex items-center justify-center mb-4 ${
                 confirmConfig.isDangerous
                   ? "bg-red-50 text-red-500"
                   : "bg-emerald-50 text-emerald-500"
               }`}
             >
-              <ShieldAlert size={32} />
+              <ShieldAlert size={28} />
             </div>
-
-            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">
+            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-2">
               {confirmConfig.title}
             </h3>
-            <p className="text-sm font-bold text-slate-400 mb-8 leading-relaxed">
+            <p className="text-[11px] font-bold text-slate-400 mb-6 leading-relaxed uppercase">
               {confirmConfig.message}
             </p>
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() =>
-                  setConfirmConfig((prev) => ({ ...prev, show: false }))
+                  setConfirmConfig({ ...confirmConfig, show: false })
                 }
-                className="py-4 bg-slate-100 rounded-2xl text-[10px] font-black uppercase text-slate-400 hover:bg-slate-200 transition-colors"
+                className="py-3 bg-slate-100 rounded-xl text-[10px] font-black uppercase text-slate-400"
               >
                 Annuler
               </button>
               <button
                 onClick={confirmConfig.action}
-                disabled={isProcessing}
-                className={`py-4 rounded-2xl text-[10px] font-black uppercase text-white shadow-lg transition-transform hover:scale-105 active:scale-95 ${
-                  confirmConfig.isDangerous
-                    ? "bg-red-500 shadow-red-500/20"
-                    : "bg-emerald-500 shadow-emerald-500/20"
+                className={`py-3 rounded-xl text-[10px] font-black uppercase text-white ${
+                  confirmConfig.isDangerous ? "bg-red-500" : "bg-emerald-500"
                 }`}
               >
-                {isProcessing ? "Patientez..." : "Confirmer"}
+                {isProcessing ? "..." : "OUI"}
               </button>
             </div>
           </div>
@@ -449,19 +342,183 @@ const Profile = () => {
   );
 };
 
-/* --- COMPOSANTS AUXILIAIRES --- */
+/* --- MINI COMPOSANTS RESPONSIVE --- */
+
+const MobileCard = ({ t }) => {
+  const isPositive = t.type === "Rechargement" || t.type === "Remboursement";
+  return (
+    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3">
+      <div className="flex justify-between items-start">
+        <div className="flex items-center gap-3">
+          <div
+            className={`p-2 rounded-xl ${
+              isPositive
+                ? "bg-emerald-50 text-emerald-600"
+                : "bg-red-50 text-red-600"
+            }`}
+          >
+            {isPositive ? (
+              <ArrowDownLeft size={16} />
+            ) : (
+              <ArrowUpRight size={16} />
+            )}
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-800 uppercase leading-none mb-1">
+              {t.description}
+            </p>
+            <div className="flex items-center gap-1.5 text-slate-400">
+              <Clock size={10} />
+              <p className="text-[9px] font-bold uppercase tracking-tight">
+                {new Date(t.date).toLocaleDateString("fr-FR", {
+                  day: "2-digit",
+                  month: "short",
+                })}{" "}
+                •{" "}
+                {new Date(t.date).toLocaleTimeString("fr-FR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="text-right">
+          <p
+            className={`text-sm font-black ${
+              isPositive ? "text-emerald-600" : "text-red-600"
+            }`}
+          >
+            {isPositive ? "+" : "-"} {Math.abs(t.montant)?.toLocaleString()}
+          </p>
+          <p className="text-[8px] font-bold text-slate-300 uppercase tracking-tighter">
+            Solde: {t.soldeApres?.toLocaleString()}
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-50">
+        <span
+          className={`text-[8px] px-2 py-0.5 rounded-full font-black uppercase border ${
+            isPositive
+              ? "border-emerald-200 text-emerald-600 bg-emerald-50"
+              : "border-slate-200 text-slate-500 bg-slate-50"
+          }`}
+        >
+          {t.type}
+        </span>
+        {t.id_bl && (
+          <span className="text-[8px] font-black text-[#EF233C] bg-red-50 px-2 py-0.5 rounded-full uppercase tracking-tighter">
+            Dossier: {t.id_bl?.numBl}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const DesktopRow = ({ t }) => {
+  const isPositive = t.type === "Rechargement" || t.type === "Remboursement";
+  return (
+    <tr className="hover:bg-slate-50/50 transition-colors group">
+      <td className="px-8 py-6">
+        <div className="flex items-center gap-4">
+          <div
+            className={`p-2.5 rounded-2xl ${
+              isPositive
+                ? "bg-emerald-50 text-emerald-600"
+                : "bg-red-50 text-red-600"
+            }`}
+          >
+            {isPositive ? (
+              <ArrowDownLeft size={18} />
+            ) : (
+              <ArrowUpRight size={18} />
+            )}
+          </div>
+          <div>
+            <p className="text-xs font-black text-slate-800 uppercase tracking-tighter">
+              {new Date(t.date).toLocaleDateString("fr-FR", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })}
+            </p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase">
+              {new Date(t.date).toLocaleTimeString("fr-FR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
+          </div>
+        </div>
+      </td>
+      <td className="px-8 py-6 uppercase tracking-tight">
+        <p className="text-sm font-black text-slate-800">{t.description}</p>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-[9px] px-2 py-0.5 rounded-full font-black border border-slate-100">
+            {t.type}
+          </span>
+          {t.id_bl && (
+            <span className="text-[10px] font-bold text-[#EF233C]">
+              DOSSIER: {t.id_bl?.numBl}
+            </span>
+          )}
+        </div>
+      </td>
+      <td
+        className={`px-8 py-6 text-right font-black ${
+          isPositive ? "text-emerald-600" : "text-red-600"
+        }`}
+      >
+        <span className="text-base">
+          {isPositive ? "+" : "-"} {Math.abs(t.montant)?.toLocaleString()}{" "}
+          <small className="text-[10px]">MRU</small>
+        </span>
+        <p className="text-[9px] text-slate-300 font-bold uppercase">
+          Solde: {t.soldeApres?.toLocaleString()}
+        </p>
+      </td>
+    </tr>
+  );
+};
 
 const TabButton = ({ label, active, onClick }) => (
   <button
     onClick={onClick}
-    className={`pb-4 text-[11px] font-black uppercase tracking-[0.15em] transition-all relative ${
-      active ? "text-slate-900" : "text-slate-400 hover:text-slate-600"
+    className={`pb-4 text-[10px] md:text-[11px] font-black uppercase tracking-widest transition-all relative ${
+      active ? "text-slate-900" : "text-slate-400"
     }`}
   >
     {label}
     {active && (
-      <div className="absolute bottom-0 left-0 w-full h-1 bg-[#EF233C] rounded-t-full" />
+      <div className="absolute bottom-0 left-0 w-full h-1 bg-[#EF233C] rounded-t-full shadow-lg shadow-red-500/50" />
     )}
+  </button>
+);
+
+const ModalButton = ({ icon, title, desc, color, onClick }) => (
+  <button
+    onClick={onClick}
+    className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all group"
+  >
+    <div className="flex items-center gap-4 text-left">
+      <div
+        className={`p-3 bg-${color}-100 text-${color}-600 rounded-lg group-hover:scale-110 transition-transform`}
+      >
+        {icon}
+      </div>
+      <div>
+        <p
+          className={`text-xs font-black uppercase tracking-tight text-slate-800`}
+        >
+          {title}
+        </p>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+          {desc}
+        </p>
+      </div>
+    </div>
+    <ArrowUpRight size={16} className="text-slate-300" />
   </button>
 );
 
@@ -473,8 +530,8 @@ const StatusBadge = ({ isRestricted }) => (
         : "bg-emerald-100 text-emerald-600"
     }`}
   >
-    {isRestricted ? <ShieldAlert size={12} /> : <ShieldCheck size={12} />}
-    <span className="text-[10px] font-black uppercase">
+    {isRestricted ? <ShieldAlert size={10} /> : <ShieldCheck size={10} />}
+    <span className="text-[9px] md:text-[10px] font-black uppercase tracking-tight">
       {isRestricted ? "Bloqué" : "Actif"}
     </span>
   </div>
@@ -482,23 +539,32 @@ const StatusBadge = ({ isRestricted }) => (
 
 const InfoBlock = ({ label, value, icon }) => (
   <div className="group">
-    <div className="flex items-center gap-2 text-[#EF233C] mb-1">
+    <div className="flex items-center justify-center sm:justify-start gap-2 text-[#EF233C] mb-1">
       {icon}
-      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
         {label}
       </span>
     </div>
-    <p className="text-base font-bold text-slate-800 ml-6 group-hover:text-[#EF233C] transition-colors">
+    <p className="text-sm md:text-base font-bold text-slate-800 uppercase truncate">
       {value || "N/A"}
     </p>
   </div>
 );
 
+const EmptyState = () => (
+  <div className="py-20 text-center bg-white rounded-3xl border border-slate-100 opacity-40">
+    <Wallet size={40} className="mx-auto mb-3 text-slate-300" />
+    <p className="text-[10px] font-black uppercase tracking-widest">
+      Aucune opération
+    </p>
+  </div>
+);
+
 const LoadingState = () => (
-  <div className="h-screen flex flex-col items-center justify-center bg-[#F8F9FA]">
-    <div className="size-14 border-[5px] border-[#EF233C]/10 border-t-[#EF233C] rounded-full animate-spin mb-4" />
-    <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] animate-pulse">
-      Synchronisation Agent...
+  <div className="h-screen flex flex-col items-center justify-center bg-[#F8F9FA] p-6 text-center">
+    <div className="size-12 border-[4px] border-[#EF233C]/10 border-t-[#EF233C] rounded-full animate-spin mb-4" />
+    <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.3em] animate-pulse">
+      Synchronisation Profil...
     </p>
   </div>
 );

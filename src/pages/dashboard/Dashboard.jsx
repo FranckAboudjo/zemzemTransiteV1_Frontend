@@ -11,6 +11,8 @@ import {
   ArrowUpCircle,
   Lock,
   HandCoins,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import API from "../../utils/axiosInstance";
@@ -25,6 +27,15 @@ const Dashboard = () => {
   const [statsData, setStatsData] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAmounts, setShowAmounts] = useState(true); // État pour masquer/afficher les montants
+
+  // --- FONCTION DE MASQUAGE ---
+  // Applique les points de suture si showAmounts est faux, sinon formate le nombre
+  const mask = (value) => {
+    if (!showAmounts) return "••••••";
+    if (value === undefined || value === null) return "0";
+    return typeof value === "number" ? value.toLocaleString() : value;
+  };
 
   // --- CHARGEMENT DES DONNÉES ---
   const fetchDashboardData = useCallback(async () => {
@@ -55,7 +66,7 @@ const Dashboard = () => {
       {
         label: "TOTAL BL EN COURS",
         value: statsData?.totalBlEnCours || 0,
-        sub: "Dépenses sur dossiers non facturés",
+        sub: `Dépenses sur dossiers non facturés`,
         icon: Users,
         color: "text-blue-500",
         bgColor: "bg-blue-50",
@@ -64,9 +75,7 @@ const Dashboard = () => {
       {
         label: "SOLDE AGENTS",
         value: statsData?.soldeAgents?.positif || 0,
-        sub: `Dettes agents: ${
-          statsData?.soldeAgents?.negatif?.toLocaleString() || 0
-        } MRU`,
+        sub: `Dettes agents: ${mask(statsData?.soldeAgents?.negatif)} MRU`,
         icon: UserCheck,
         color: "text-purple-500",
         bgColor: "bg-purple-50",
@@ -74,12 +83,10 @@ const Dashboard = () => {
       },
       {
         label: "SOLDE CLIENTS",
-        // ✅ Correction : Utilise 'ceQueLesClientsDoivent' du JSON
         value: statsData?.soldeTotalClients?.ceQueLesClientsDoivent || 0,
-        sub: `Avances clients: ${
-          statsData?.soldeTotalClients?.ceQueNousDevonsAuxClients?.toLocaleString() ||
-          0
-        } MRU`,
+        sub: `Avances clients: ${mask(
+          statsData?.soldeTotalClients?.ceQueNousDevonsAuxClients
+        )} MRU`,
         icon: HandCoins,
         color: "text-rose-500",
         bgColor: "bg-rose-50",
@@ -87,18 +94,15 @@ const Dashboard = () => {
       },
       {
         label: "BÉNÉFICE RÉEL",
-        // ✅ Correction : Utilise 'beneficeMois' du JSON
         value: statsData?.beneficeMois || 0,
-        sub: `Total liquidation: ${
-          statsData?.totalLiquidation?.toLocaleString() || 0
-        } MRU`,
+        sub: `Total liquidation: ${mask(statsData?.totalLiquidation)} MRU`,
         icon: Wallet,
         color: "text-emerald-500",
         bgColor: "bg-emerald-50",
         isAdminOnly: true,
       },
     ],
-    [statsData, isAdmin]
+    [statsData, isAdmin, showAmounts] // Re-calculer si la visibilité change
   );
 
   const LockedOverlay = () => (
@@ -123,7 +127,7 @@ const Dashboard = () => {
               Solde Générale (Caisse)
             </p>
             <h3 className="text-4xl font-extrabold text-[#EF233C] flex items-baseline gap-2">
-              {isLoading ? "..." : statsData?.soldeGenerale?.toLocaleString()}
+              {isLoading ? "..." : mask(statsData?.soldeGenerale)}
               <span className="text-sm font-medium text-gray-400">MRU</span>
             </h3>
             <div className="mt-6 flex items-center gap-2 text-[11px] font-bold text-[#EF233C] uppercase tracking-tighter">
@@ -132,12 +136,28 @@ const Dashboard = () => {
             </div>
           </div>
           <TrendingUp className="absolute right-8 top-1/2 -translate-y-1/2 size-32 text-white/5" />
-          <button
-            onClick={fetchDashboardData}
-            className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all active:scale-95"
-          >
-            <RefreshCw size={20} className={isLoading ? "animate-spin" : ""} />
-          </button>
+
+          {/* BARRE D'OUTILS (Masquage + Refresh) */}
+          <div className="absolute top-6 right-6 flex gap-2 z-30">
+            <button
+              onClick={() => setShowAmounts(!showAmounts)}
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all active:scale-95 text-white"
+              title={
+                showAmounts ? "Masquer les montants" : "Afficher les montants"
+              }
+            >
+              {showAmounts ? <Eye size={20} /> : <EyeOff size={20} />}
+            </button>
+            <button
+              onClick={fetchDashboardData}
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all active:scale-95 text-white"
+            >
+              <RefreshCw
+                size={20}
+                className={isLoading ? "animate-spin" : ""}
+              />
+            </button>
+          </div>
         </div>
 
         {/* Crédit Douane */}
@@ -147,7 +167,7 @@ const Dashboard = () => {
               Crédit Douane
             </p>
             <h3 className="text-4xl text-[#202042] font-extrabold flex items-baseline gap-2">
-              {isLoading ? "..." : statsData?.creditDouane?.toLocaleString()}
+              {isLoading ? "..." : mask(statsData?.creditDouane)}
               <span className="text-sm font-medium text-white">MRU</span>
             </h3>
             <p className="text-[10px] mt-4 font-bold text-[#202042]/70 uppercase">
@@ -180,7 +200,7 @@ const Dashboard = () => {
                   {stat.label}
                 </p>
                 <h4 className="text-2xl font-black text-[#202042]">
-                  {isLoading ? "..." : stat.value?.toLocaleString()}{" "}
+                  {isLoading ? "..." : mask(stat.value)}{" "}
                   <span className="text-xs text-gray-400 font-medium">MRU</span>
                 </h4>
               </div>
@@ -253,7 +273,7 @@ const Dashboard = () => {
                       }`}
                     >
                       {t.typeOperation === "Credit" ? "+" : "-"}{" "}
-                      {t.montant?.toLocaleString()}
+                      {mask(t.montant)}
                     </span>
                   </div>
                 ))}
@@ -286,9 +306,7 @@ const Dashboard = () => {
                   Marge Nette
                 </span>
                 <span className="text-2xl font-black text-[#202042]">
-                  {isLoading
-                    ? "..."
-                    : statsData?.beneficeGlobal?.toLocaleString()}
+                  {isLoading ? "..." : mask(statsData?.beneficeGlobal)}
                 </span>
                 <span className="text-[9px] text-gray-400 font-bold uppercase">
                   MRU
@@ -302,7 +320,7 @@ const Dashboard = () => {
                   Total Facturé
                 </span>
                 <span className="font-black text-[#202042]">
-                  {statsData?.totalBlFacture?.toLocaleString()} MRU
+                  {mask(statsData?.totalBlFacture)} MRU
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -310,7 +328,7 @@ const Dashboard = () => {
                   Dépenses (BL En cours)
                 </span>
                 <span className="font-black text-blue-500">
-                  {statsData?.totalBlEnCours?.toLocaleString()} MRU
+                  {mask(statsData?.totalBlEnCours)} MRU
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -318,7 +336,7 @@ const Dashboard = () => {
                   Créances Clients
                 </span>
                 <span className="font-black text-rose-500">
-                  {statsData?.soldeClients?.aRecouvrer?.toLocaleString()} MRU
+                  {mask(statsData?.soldeClients?.aRecouvrer)} MRU
                 </span>
               </div>
             </div>

@@ -69,7 +69,7 @@ const Login = () => {
         setTimeout(() => {
           // Si le rôle est exactement "agent", on envoie vers /profile
           // Sinon (admin ou autre), on envoie vers /dashboard
-          if (userData.role === "agent") {
+          if (userData.role === "agent" || userData.role === "superviseur") {
             navigate("/profile");
           } else {
             navigate("/dashboard");

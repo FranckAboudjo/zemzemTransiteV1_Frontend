@@ -91,7 +91,7 @@ const DashboardLayout = ({ children, activeMenu }) => {
       id: "dashboard",
       label: "Tableau de bord",
       icon: LayoutDashboard,
-      roles: ["admin", "superviseur"],
+      roles: ["admin"],
     },
     {
       id: "profile",

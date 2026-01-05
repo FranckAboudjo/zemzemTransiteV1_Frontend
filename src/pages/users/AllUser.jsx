@@ -10,7 +10,6 @@ import {
   Trash2,
   MoreVertical,
   ShieldCheck,
-  ExternalLink,
   ArrowUpCircle,
   ArrowDownCircle,
   Wallet,
@@ -28,13 +27,13 @@ const AllUsers = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+
   // --- ÉTATS ---
   const [users, setUsers] = useState([]);
-  const [caisseSolde, setCaisseSolde] = useState(0); // Pour le rechargement
+  const [caisseSolde, setCaisseSolde] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // États UI
   const [searchTerm, setSearchTerm] = useState("");
   const [sortConfig, setSortConfig] = useState({
     key: "nom",
@@ -43,14 +42,12 @@ const AllUsers = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // États Modaux
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState(null);
   const [isUpdateOpen, setIsUpdateOpen] = useState(false);
 
-  // Nouveaux états Rechargement / Retrait
   const [isRechargeOpen, setIsRechargeOpen] = useState(false);
   const [isRetraitOpen, setIsRetraitOpen] = useState(false);
   const [transactionAmount, setTransactionAmount] = useState("");
@@ -63,31 +60,26 @@ const AllUsers = () => {
     client: "bg-slate-50 text-slate-500 border-slate-100",
   };
 
-  // --- CHARGEMENT DES DONNÉES ---
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
       const [userRes, caisseRes] = await Promise.all([
         API.get(API_PATHS.USERS.GET_ALL_USERS),
-        API.get(API_PATHS.GETINFO.GET_INFO_CAISSE), // Route supposée pour récupérer le solde caisse
+        API.get(API_PATHS.GETINFO.GET_INFO_CAISSE),
       ]);
       setUsers(Array.isArray(userRes.data.data) ? userRes.data.data : []);
       setCaisseSolde(caisseRes.data.solde || 0);
-      setError(null);
     } catch (err) {
-      setError({
-        message: err.message || "Erreur de chargement.",
-        status: err.status,
-      });
+      setError({ message: err.message || "Erreur de chargement." });
     } finally {
       setIsLoading(false);
     }
   };
+
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  // --- LOGIQUE DE TRANSACTION (RECHARGE / RETRAIT) ---
   const getCurrentAdminName = () => {
     const userData = JSON.parse(
       localStorage.getItem("_appTransit_user") || "{}"
@@ -123,7 +115,6 @@ const AllUsers = () => {
     }
   };
 
-  // --- ACTIONS EXISTANTES ---
   const handleDelete = async () => {
     if (!selectedUser) return;
     try {
@@ -134,30 +125,28 @@ const AllUsers = () => {
       setIsDeleteOpen(false);
       fetchUsers();
     } catch (err) {
-      toast.error(err.message || "Erreur de suppression");
+      toast.error("Erreur de suppression");
     }
   };
 
-  // --- LOGIQUE DE FILTRE ET TRI ---
   const processedUsers = useMemo(() => {
     let result = Array.isArray(users) ? [...users] : [];
     if (searchTerm) {
       result = result.filter(
         (u) =>
           u.nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          u.prenoms?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          u.role?.toLowerCase().includes(searchTerm.toLowerCase())
+          u.prenoms?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     result.sort((a, b) => {
-      let valA, valB;
-      if (sortConfig.key === "solde") {
-        valA = a.compte?.montant || 0;
-        valB = b.compte?.montant || 0;
-      } else {
-        valA = a[sortConfig.key] || "";
-        valB = b[sortConfig.key] || "";
-      }
+      let valA =
+        sortConfig.key === "solde"
+          ? a.compte?.montant || 0
+          : a[sortConfig.key] || "";
+      let valB =
+        sortConfig.key === "solde"
+          ? b.compte?.montant || 0
+          : b[sortConfig.key] || "";
       if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
       if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
       return 0;
@@ -165,13 +154,11 @@ const AllUsers = () => {
     return result;
   }, [users, searchTerm, sortConfig]);
 
-  const totalPages = Math.ceil(processedUsers.length / itemsPerPage);
   const currentUsers = processedUsers.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
-  // (Rendu isLoading et error inchangé...)
   if (isLoading)
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -181,7 +168,7 @@ const AllUsers = () => {
 
   return (
     <div className="p-4 lg:p-8 space-y-6 bg-[#F8FAFC]">
-      {/* HEADER & RECHERCHE (Inchangés) */}
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-slate-900 text-white rounded-xl">
@@ -196,12 +183,10 @@ const AllUsers = () => {
             </p>
           </div>
         </div>
-
-        {/* LE BOUTON N'EST RENDU QUE SI L'UTILISATEUR EST ADMIN */}
         {isAdmin && (
           <button
             onClick={() => setIsCreateOpen(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-[#EF233C] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#D90429] transition-all active:scale-95 shadow-lg shadow-red-100 w-full md:w-auto justify-center"
+            className="flex items-center gap-2 px-6 py-3 bg-[#EF233C] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#D90429] transition-all active:scale-95 shadow-lg w-full md:w-auto justify-center"
           >
             <UserPlus size={18} /> Ajouter un Agent
           </button>
@@ -217,166 +202,130 @@ const AllUsers = () => {
           type="text"
           placeholder="RECHERCHER PAR NOM OU RÔLE..."
           className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-[10px] font-bold uppercase tracking-widest focus:border-[#EF233C] outline-none shadow-sm"
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
-            setCurrentPage(1);
-          }}
+          onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
 
       {/* TABLEAU */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm max-h-[600px] overflow-y-auto ">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden overflow-x-auto">
         <table className="w-full text-left">
           <thead>
             <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black uppercase text-slate-500 tracking-widest">
-              <th
-                className="px-6 py-5 cursor-pointer hover:text-[#EF233C]"
-                onClick={() =>
-                  setSortConfig({
-                    key: "nom",
-                    direction: sortConfig.direction === "asc" ? "desc" : "asc",
-                  })
-                }
-              >
-                Utilisateur{" "}
-                {sortConfig.key === "nom" &&
-                  (sortConfig.direction === "asc" ? "↑" : "↓")}
-              </th>
+              <th className="px-6 py-5">Utilisateur</th>
               <th className="px-6 py-5">Rôle</th>
-              <th
-                className="px-6 py-5 cursor-pointer hover:text-[#EF233C]"
-                onClick={() =>
-                  setSortConfig({
-                    key: "solde",
-                    direction: sortConfig.direction === "asc" ? "desc" : "asc",
-                  })
-                }
-              >
-                Solde MRU{" "}
-                {sortConfig.key === "solde" &&
-                  (sortConfig.direction === "asc" ? "↑" : "↓")}
-              </th>
+              <th className="px-6 py-5">Solde MRU</th>
               <th className="px-6 py-5">Restriction</th>
               <th className="px-6 py-5">Gestion Fonds</th>
               <th className="px-6 py-5 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {currentUsers.map((user) => (
+            {currentUsers.map((u) => (
               <tr
-                key={user._id}
-                className={`hover:bg-red-50/10 transition-colors group ${
-                  user.restriction ? "bg-slate-50/50" : ""
-                }`}
+                key={u._id}
+                className="hover:bg-red-50/10 transition-colors group"
               >
                 <td
                   className="px-6 py-4"
-                  onClick={() => navigate(`/users/id=${user._id}`)}
+                  onClick={() => navigate(`/users/id=${u._id}`)}
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center font-black text-white text-[10px] uppercase">
-                      {user.nom?.[0]}
-                      {user.prenoms?.[0]}
+                      {u.nom?.[0]}
+                      {u.prenoms?.[0]}
                     </div>
                     <div className="text-sm font-black text-slate-900 uppercase group-hover:text-[#EF233C] transition-colors">
-                      {user.nom} {user.prenoms}
+                      {u.nom} {u.prenoms}
                     </div>
                   </div>
                 </td>
                 <td className="px-6 py-4">
                   <span
                     className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase border ${
-                      ROLE_STYLES[user.role] || ROLE_STYLES.Client
+                      ROLE_STYLES[u.role] || ROLE_STYLES.client
                     }`}
                   >
-                    {user.role || "Client"}
+                    {u.role || "Client"}
                   </span>
                 </td>
                 <td className="px-6 py-4 font-black text-sm">
                   <span
                     className={
-                      (user.compte?.montant || 0) < 0
+                      (u.compte?.montant || 0) < 0
                         ? "text-[#EF233C]"
                         : "text-emerald-600"
                     }
                   >
                     {new Intl.NumberFormat("fr-FR").format(
-                      user.compte?.montant || 0
+                      u.compte?.montant || 0
                     )}
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  {user.restriction ? (
-                    <div className="inline-flex items-center gap-1.5 text-orange-600 bg-orange-50 border border-orange-100 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase">
+                  {u.restriction ? (
+                    <div className="inline-flex items-center gap-1.5 text-orange-600 bg-orange-50 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase">
                       <ShieldAlert size={12} /> Bloqué
                     </div>
                   ) : (
-                    <div className="inline-flex items-center gap-1.5 text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase">
+                    <div className="inline-flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase">
                       <ShieldCheck size={12} /> Actif
                     </div>
                   )}
                 </td>
-                {/* NOUVELLE COLONNE GESTION FONDS */}
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedUser(user);
+                        setSelectedUser(u);
                         setIsRechargeOpen(true);
                       }}
-                      className="p-2  text-slate-500 flex items-center gap-2 text-xs rounded-lg hover:underline hover:text-[#EF233C] transition-all active:scale-90"
-                      title="Recharger"
+                      className="p-2 text-slate-500 flex items-center gap-2 text-xs rounded-lg hover:underline hover:text-[#EF233C] transition-all active:scale-90"
                     >
                       <ArrowDownCircle size={18} /> Recharge
                     </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedUser(user);
+                        setSelectedUser(u);
                         setIsRetraitOpen(true);
                       }}
-                      className="p-2 text-slate-500  flex items-center gap-2 text-xs rounded-lg hover:underline hover:text-green-600 transition-all active:scale-90"
-                      title="Retrait"
+                      className="p-2 text-slate-500 flex items-center gap-2 text-xs rounded-lg hover:underline hover:text-green-600 transition-all active:scale-90"
                     >
                       <ArrowUpCircle size={18} /> Retrait
                     </button>
                   </div>
                 </td>
-                <td
-                  className="px-6 py-4 text-right relative"
-                  onClick={(e) => e.stopPropagation()}
-                >
+                <td className="px-6 py-4 text-right relative">
                   {isAdmin && (
                     <button
                       onClick={() =>
-                        setActiveMenu(activeMenu === user._id ? null : user._id)
+                        setActiveMenu(activeMenu === u._id ? null : u._id)
                       }
-                      className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
+                      className="p-2 hover:bg-slate-100 rounded-lg text-slate-400"
                     >
                       <MoreVertical size={18} />
                     </button>
                   )}
-
-                  {activeMenu === user._id && (
-                    <div className="absolute right-6 top-10 w-44 bg-white border border-slate-200 rounded-xl py-2 shadow-2xl z-50 animate-in fade-in zoom-in-95">
+                  {activeMenu === u._id && (
+                    <div className="absolute right-6 top-10 w-44 bg-white border border-slate-200 rounded-xl py-2 shadow-2xl z-50">
                       <button
                         onClick={() => {
-                          setSelectedUser(user);
+                          setSelectedUser(u);
                           setIsUpdateOpen(true);
                           setActiveMenu(null);
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[10px] font-black text-slate-700 hover:bg-slate-50 uppercase tracking-tighter"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[10px] font-black text-slate-700 hover:bg-slate-50 uppercase"
                       >
                         <Edit2 size={14} /> Modifier
                       </button>
                       <button
                         onClick={() => {
-                          setSelectedUser(user);
+                          setSelectedUser(u);
                           setIsDeleteOpen(true);
                           setActiveMenu(null);
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[10px] font-black text-[#EF233C] hover:bg-red-50 uppercase tracking-tighter"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-[10px] font-black text-[#EF233C] hover:bg-red-50 uppercase"
                       >
                         <Trash2 size={14} /> Supprimer
                       </button>
@@ -389,13 +338,23 @@ const AllUsers = () => {
         </table>
       </div>
 
-      {/* MODAL RECHARGE */}
+      {/* MODAL RECHARGE AVEC SOLDE AGENT */}
       <Modal
         isOpen={isRechargeOpen}
         onClose={() => setIsRechargeOpen(false)}
         title={`Recharger le compte de ${selectedUser?.nom}`}
       >
         <div className="space-y-5 p-2">
+          {/* NOUVEL AFFICHAGE DU SOLDE DE L'AGENT */}
+          <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+            <p className="text-[9px] font-black text-emerald-600 uppercase">
+              Solde actuel de l'agent
+            </p>
+            <p className="text-xl font-black text-slate-900">
+              {(selectedUser?.compte?.montant || 0).toLocaleString()} MRU
+            </p>
+          </div>
+
           <div className="flex justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
             <div>
               <p className="text-[9px] font-black text-slate-400 uppercase">
@@ -407,7 +366,7 @@ const AllUsers = () => {
             </div>
             <div className="text-right">
               <p className="text-[9px] font-black text-slate-400 uppercase">
-                Solde après
+                Nouveau Solde Caisse
               </p>
               <p className="text-sm font-black text-red-600">
                 {(
@@ -417,6 +376,7 @@ const AllUsers = () => {
               </p>
             </div>
           </div>
+
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-500 uppercase ml-1">
               Montant du versement
@@ -444,35 +404,23 @@ const AllUsers = () => {
         </div>
       </Modal>
 
-      {/* MODAL RETRAIT */}
+      {/* MODAL RETRAIT AVEC SOLDE AGENT */}
       <Modal
         isOpen={isRetraitOpen}
         onClose={() => setIsRetraitOpen(false)}
         title={`Retrait du compte de ${selectedUser?.nom}`}
       >
         <div className="space-y-5 p-2">
-          <div className="flex justify-between p-4 bg-red-50/50 rounded-xl border border-red-100">
-            <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase">
-                Solde Agent
-              </p>
-              <p className="text-sm font-black text-slate-900">
-                {(selectedUser?.compte?.montant || 0).toLocaleString()} MRU
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[9px] font-black text-slate-400 uppercase">
-                Solde après
-              </p>
-              <p className="text-sm font-black text-emerald-600">
-                {(
-                  (selectedUser?.compte?.montant || 0) -
-                  (parseInt(transactionAmount) || 0)
-                ).toLocaleString()}{" "}
-                MRU
-              </p>
-            </div>
+          {/* AFFICHAGE DU SOLDE DE L'AGENT */}
+          <div className="p-4 bg-red-50 border border-red-100 rounded-xl">
+            <p className="text-[9px] font-black text-red-600 uppercase">
+              Solde actuel de l'agent
+            </p>
+            <p className="text-xl font-black text-slate-900">
+              {(selectedUser?.compte?.montant || 0).toLocaleString()} MRU
+            </p>
           </div>
+
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-500 uppercase ml-1">
               Montant du retrait
@@ -484,6 +432,14 @@ const AllUsers = () => {
               className="w-full px-4 py-4 bg-white border-2 border-slate-100 rounded-xl font-black text-lg focus:border-[#EF233C] outline-none"
               placeholder="0.00"
             />
+            <p className="text-[10px] font-bold text-emerald-600">
+              Nouveau solde agent :{" "}
+              {(
+                (selectedUser?.compte?.montant || 0) -
+                (parseInt(transactionAmount) || 0)
+              ).toLocaleString()}{" "}
+              MRU
+            </p>
           </div>
           <button
             onClick={() => handleTransaction("retrait")}
@@ -494,7 +450,7 @@ const AllUsers = () => {
         </div>
       </Modal>
 
-      {/* MODALS EXISTANTS (Inchangés) */}
+      {/* MODALS SUPPRESSION / CRÉATION / UPDATE */}
       <Modal
         isOpen={isDeleteOpen}
         onClose={() => setIsDeleteOpen(false)}
@@ -506,7 +462,7 @@ const AllUsers = () => {
           </div>
           <p className="text-xs text-slate-600 font-bold uppercase tracking-wide">
             Confirmer la suppression de <br />
-            <span className="text-sm font-black text-slate-900 underline decoration-[#EF233C] uppercase">
+            <span className="text-sm font-black text-slate-900 underline uppercase">
               {selectedUser?.nom} {selectedUser?.prenoms}
             </span>
           </p>
@@ -519,7 +475,7 @@ const AllUsers = () => {
             </button>
             <button
               onClick={handleDelete}
-              className="flex-1 py-4 bg-[#EF233C] text-white rounded-xl font-black text-[10px] uppercase shadow-lg shadow-red-100 hover:bg-[#D90429]"
+              className="flex-1 py-4 bg-[#EF233C] text-white rounded-xl font-black text-[10px] uppercase shadow-lg hover:bg-[#D90429]"
             >
               Supprimer
             </button>
@@ -527,7 +483,6 @@ const AllUsers = () => {
         </div>
       </Modal>
 
-      {/* FORMULAIRES DE CRÉATION/MAJ (Inchangés) */}
       <Modal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
