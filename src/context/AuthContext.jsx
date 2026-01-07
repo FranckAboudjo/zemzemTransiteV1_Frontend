@@ -1,4 +1,3 @@
-// AuthContext.js
 import React, {
   createContext,
   useContext,
@@ -9,7 +8,7 @@ import React, {
 import API from "../utils/axiosInstance";
 import { API_PATHS } from "../utils/apiPaths";
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -21,64 +20,83 @@ export const AuthProvider = ({ children }) => {
     return { ...userData, _id: userData._id || userData.id };
   };
 
-  // On utilise useCallback pour pouvoir l'appeler dans l'intercepteur plus tard
+  /**
+   * LOGOUT
+   * - Nettoyage local uniquement
+   * - La redirection est centralisée ici
+   */
   const logout = useCallback(async () => {
     try {
-      // Vérifiez si votre backend attend un POST ou un GET
-      // Si la route n'existe pas encore, cette ligne génère la 404
-      await API.post(API_PATHS.AUTH.LOGOUT);
-    } catch (error) {
-      // On log l'erreur mais on ne bloque pas l'utilisateur
-      console.warn(
-        "Le serveur n'a pas pu traiter la déconnexion (route inexistante ?)"
-      );
+      await API.post(API_PATHS.AUTH.LOGOUT, {}, { timeout: 2000 });
+    } catch {
+      // silencieux
     } finally {
-      // Nettoyage local obligatoire
       localStorage.removeItem("_appTransit_user");
       setUser(null);
       setIsAuthenticated(false);
-      window.location.href = "/login";
+      setLoading(false);
+
+      if (!window.location.pathname.includes("/login")) {
+        window.location.replace("/login");
+      }
     }
   }, []);
 
-  const checkAuthStatus = async () => {
+  /**
+   * CHECK AUTH AU BOOT
+   * - AUCUN appel API
+   * - On fait confiance au cookie + interceptor
+   */
+  const checkAuthStatus = useCallback(() => {
     const userStr = localStorage.getItem("_appTransit_user");
 
-    if (userStr) {
-      const rawUser = JSON.parse(userStr);
-      setUser(normalizeUser(rawUser));
-      setIsAuthenticated(true);
-
-      // On vérifie quand même la session en arrière-plan sans bloquer
-      try {
-        await API.get(API_PATHS.AUTH.ME);
-      } catch (error) {
-        console.error("Session invalide sur le serveur");
-        logout(); // Déconnecte seulement si le serveur confirme que la session est morte
-      }
+    if (!userStr) {
+      setLoading(false);
+      return;
     }
-    setLoading(false);
-  };
+
+    try {
+      const normalized = normalizeUser(JSON.parse(userStr));
+      setUser(normalized);
+      setIsAuthenticated(true);
+    } catch {
+      localStorage.removeItem("_appTransit_user");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     checkAuthStatus();
-  }, [logout]);
+  }, [checkAuthStatus]);
 
+  /**
+   * LOGIN
+   * - appelé après succès API /login
+   */
   const login = (userData) => {
     const normalized = normalizeUser(userData);
     localStorage.setItem("_appTransit_user", JSON.stringify(normalized));
     setUser(normalized);
     setIsAuthenticated(true);
+    setLoading(false);
   };
 
-  const value = { user, loading, isAuthenticated, login, logout };
+  const value = {
+    user,
+    loading,
+    isAuthenticated,
+    login,
+    logout,
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context)
+  if (!context) {
     throw new Error("useAuth doit être utilisé dans un AuthProvider");
+  }
   return context;
 };

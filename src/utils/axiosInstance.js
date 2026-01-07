@@ -1,67 +1,62 @@
 import axios from "axios";
 
-const options = {
+const API = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-  withCredentials: true, // Crucial pour les cookies HttpOnly
+  withCredentials: true,
   timeout: 10000,
-  headers: {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  },
-};
+});
 
-const API = axios.create(options);
-
-// --- Intercepteur de Requête ---
-API.interceptors.request.use(
-  (config) => config,
-  (error) => Promise.reject(error)
-);
-
-// --- Intercepteur de Réponse ---
+/**
+ * Interceptor réponse
+ * - 401 : session expirée → nettoyage + redirection
+ * - timeout : message clair
+ * - AUCUNE annulation globale
+ */
 API.interceptors.response.use(
   (response) => response,
   async (error) => {
+    const originalRequest = error.config;
     const { response, code } = error;
 
-    if (response) {
-      const { status } = response;
-
-      // 1. Gestion spécifique 401 (Session expirée après 24h)
-      if (status === 401) {
-        // On ne redirige pas si l'utilisateur est déjà sur la page de login
-        // pour éviter des boucles infinies de redirections
-        if (!window.location.pathname.includes("/login")) {
-          // Nettoyage complet des données locales
-          localStorage.removeItem("_appTransit_user");
-
-          // Option A : Redirection brutale (plus fiable pour vider l'état React)
-          window.location.href = "/login?session=expired";
-        }
+    // N'exécutez PAS la logique 401 pour les requêtes de login
+    if (response?.status === 401) {
+      // Si c'est la requête de login elle-même, ne pas rediriger
+      if (
+        originalRequest.url.includes("/login") ||
+        originalRequest.url.includes("/auth/login")
+      ) {
+        return Promise.reject(error);
       }
 
-      // 2. Erreur 403 (Accès refusé mais session valide)
-      if (status === 403) {
-        console.error("Vous n'avez pas les droits nécessaires.");
+      // Si on est déjà sur la page login, ne pas rediriger à nouveau
+      if (window.location.pathname.includes("/login")) {
+        return Promise.reject(error);
       }
 
-      // On renvoie l'objet data complet pour que toast.error(err.message) fonctionne
-      return Promise.reject(response.data || { message: "Erreur serveur" });
+      // Sinon, procéder à la déconnexion
+      console.log("Session expirée, déconnexion...");
+      localStorage.removeItem("_appTransit_user");
+
+      // Évitez les boucles de redirection
+      const currentPath = window.location.pathname;
+      if (currentPath !== "/login" && !currentPath.includes("/login")) {
+        // Utilisez un setTimeout pour éviter les conflits
+        setTimeout(() => {
+          window.location.replace("/login");
+        }, 100);
+      }
+
+      return Promise.reject(error);
     }
 
-    // 3. Gestion du Timeout
-    if (code === "ECONNABORTED") {
+    if (code === "ECONNABORTED" || error.message.includes("timeout")) {
       return Promise.reject({
         message: "Délai d'attente dépassé (Timeout).",
         success: false,
       });
     }
 
-    // 4. Erreur Réseau
-    return Promise.reject({
-      message: "Connexion au serveur impossible.",
-      success: false,
-    });
+    return Promise.reject(response?.data || { message: "Erreur de connexion" });
   }
 );
 

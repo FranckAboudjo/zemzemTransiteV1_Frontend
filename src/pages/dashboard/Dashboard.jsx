@@ -17,24 +17,30 @@ import {
 import toast from "react-hot-toast";
 import API from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
+import { useAuth } from "../../context/AuthContext";
 
 const Dashboard = () => {
   // --- AUTHENTIFICATION ---
-  const userData = JSON.parse(localStorage.getItem("_appTransit_user") || "{}");
-  const isAdmin = userData.role === "admin";
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   // --- ÉTATS ---
   const [statsData, setStatsData] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showAmounts, setShowAmounts] = useState(true); // État pour masquer/afficher les montants
+  const [showAmounts, setShowAmounts] = useState(false); // État pour masquer/afficher les montants
 
   // --- FONCTION DE MASQUAGE ---
   // Applique les points de suture si showAmounts est faux, sinon formate le nombre
+  // Remplacez votre fonction mask actuelle par celle-ci
   const mask = (value) => {
     if (!showAmounts) return "••••••";
+
+    // Gestion des cas où la donnée n'est pas encore chargée
     if (value === undefined || value === null) return "0";
-    return typeof value === "number" ? value.toLocaleString() : value;
+
+    // Formatage propre
+    return typeof value === "number" ? value.toLocaleString("fr-FR") : value;
   };
 
   // --- CHARGEMENT DES DONNÉES ---
