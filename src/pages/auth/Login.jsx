@@ -45,7 +45,7 @@ const Login = () => {
     );
   };
 
-  // --- LOGIQUE DE CONNEXION SIMPLIFIÉE ---
+  // --- LOGIQUE DE CONNEXION AVEC VÉRIFICATION DE RESTRICTION ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isFormValid()) return;
@@ -54,21 +54,23 @@ const Login = () => {
     setError("");
 
     try {
-      // 1. Tentative de connexion
       const loginRes = await API.post(API_PATHS.AUTH.LOGIN, formData);
 
       if (loginRes.data.success) {
-        const userData = loginRes.data.data;
+        const userData = loginRes.data.data; // 1. Vérification immédiate de la restriction
 
-        // 2. Mise à jour du contexte Auth
+        if (userData.restriction === true) {
+          setSuccess("Vérification du compte...");
+          setTimeout(() => {
+            navigate("/restrictions"); // Redirection vers votre page de blocage
+          }, 800);
+          return; // On stoppe l'exécution ici
+        } // 2. Si pas de restriction, on continue normalement
+
         login(userData);
-
         setSuccess("Authentification réussie...");
 
-        // 3. Redirection conditionnelle
         setTimeout(() => {
-          // Si le rôle est exactement "agent", on envoie vers /profile
-          // Sinon (admin ou autre), on envoie vers /dashboard
           if (userData.role === "agent" || userData.role === "superviseur") {
             navigate("/profile");
           } else {

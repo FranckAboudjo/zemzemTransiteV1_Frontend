@@ -2,7 +2,14 @@ import React, { useState, useEffect } from "react";
 import API from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
 import toast from "react-hot-toast";
-import { User, Wallet, FileText, Loader2 } from "lucide-react";
+import {
+  User,
+  Wallet,
+  FileText,
+  Loader2,
+  AlertCircle,
+  Info,
+} from "lucide-react";
 
 const RetraitClientForm = ({ onClose, onSuccess }) => {
   const [clients, setClients] = useState([]);
@@ -13,13 +20,12 @@ const RetraitClientForm = ({ onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     idClient: "",
     clientName: "",
-    clientSolde: 0, // Stocker le solde pour vérification locale
+    clientSolde: 0,
     montant: "",
     modePaiement: "Espèces",
     description: "",
   });
 
-  // Charger les clients
   useEffect(() => {
     const fetchClients = async () => {
       try {
@@ -39,56 +45,52 @@ const RetraitClientForm = ({ onClose, onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // 1. Validations de base
-    if (!formData.idClient) return toast.error("Veuillez choisir un client");
+    if (!formData.idClient) {
+      return toast.error("Veuillez sélectionner un client.");
+    }
+
     const montantNum = Number(formData.montant);
-    if (montantNum <= 0) return toast.error("Montant invalide");
-
-    if (!formData.idClient || formData.idClient === "") {
-      return toast.error("Erreur: ID client non valide.");
+    if (montantNum <= 0) {
+      return toast.error("Le montant doit être supérieur à 0.");
     }
 
-    // Vérification locale du solde (optionnel mais recommandé)
-    if (montantNum > formData.clientSolde) {
-      return toast.error(
-        `Solde insuffisant (Max: ${formData.clientSolde} MRU)`
-      );
-    }
-
-    // 2. Récupération de l'utilisateur (Caissier) pour l'historique backend
     const userData = JSON.parse(localStorage.getItem("_appTransit_user"));
     const idUser = userData?._id || userData?.id;
 
-    if (!idUser)
-      return toast.error("Session expirée, veuillez vous reconnecter");
-
     setLoading(true);
-    try {
-      // 3. Construction de l'URL avec l'ID du CLIENT
-      // Vérifiez que dans apiPaths, CREATE_RETRAIT_CLIENT se termine par /:id
-      const url = API_PATHS.RETRAIT_CLIENT.CREATE_RETRAIT_CLIENT.replace(
-        ":id",
-        formData.idClient
-      );
 
-      // 4. Payload incluant l'idUser pour le schéma de l'Historique
+    try {
+      // Construction de l'URL avec remplacement du paramètre dynamique
+      const baseUrl = API_PATHS.RETRAIT_CLIENT.CREATE_RETRAIT_CLIENT;
+      const finalUrl = baseUrl.includes(":idClient")
+        ? baseUrl.replace(":idClient", formData.idClient)
+        : baseUrl.replace(":id", formData.idClient);
+
       const payload = {
         idClient: formData.idClient,
-        idUser: idUser, // Crucial pour HistoriqueTransactionClient
+        idUser: idUser,
         montant: montantNum,
         modePaiement: formData.modePaiement,
         description:
-          formData.description || `Retrait du client ${formData.clientName}`,
+          formData.description || `Retrait client ${formData.clientName}`,
       };
 
-      await API.post(url, payload);
+      await API.post(finalUrl, payload);
 
-      toast.success("Retrait effectué avec succès");
+      // Message de succès personnalisé si le client passe en négatif
+      const nouveauSoldeTheorique = formData.clientSolde - montantNum;
+      if (nouveauSoldeTheorique < 0) {
+        toast.success(
+          `Retrait effectué. Nouveau solde : ${nouveauSoldeTheorique} MRU (Découvert)`
+        );
+      } else {
+        toast.success("Retrait enregistré avec succès");
+      }
+
       onSuccess();
       onClose();
     } catch (err) {
-      // Affiche le message d'erreur précis renvoyé par le backend
-      const errorMsg = err.message || "Erreur lors du retrait";
+      const errorMsg = err.response?.data?.message || "Erreur lors du retrait";
       toast.error(errorMsg);
     } finally {
       setLoading(false);
@@ -97,7 +99,7 @@ const RetraitClientForm = ({ onClose, onSuccess }) => {
 
   return (
     <form onSubmit={handleSubmit} className="p-8 space-y-6">
-      {/* SELECTION CLIENT AVEC RECHERCHE */}
+      {/* SELECTION CLIENT */}
       <div className="relative">
         <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">
           Sélectionner le Client
@@ -141,13 +143,19 @@ const RetraitClientForm = ({ onClose, onSuccess }) => {
                 >
                   <div className="flex flex-col">
                     <span>{client.nom}</span>
-                    <span className="text-[9px] text-emerald-500">
-                      Solde: {client.solde?.toLocaleString()} MRU
+                    <span
+                      className={`text-[9px] ${
+                        client.solde < 0 ? "text-red-500" : "text-emerald-500"
+                      }`}
+                    >
+                      Solde : {client.solde?.toLocaleString()} MRU
                     </span>
                   </div>
-                  <span className="text-[9px] bg-slate-100 px-2 py-1 rounded text-slate-400 font-black uppercase">
-                    ID: {client._id.slice(-5)}
-                  </span>
+                  {client.solde < 0 && (
+                    <span className="text-[8px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-black uppercase">
+                      Débiteur
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -156,6 +164,7 @@ const RetraitClientForm = ({ onClose, onSuccess }) => {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
+        {/* MONTANT (Sans limite Max) */}
         <div className="space-y-2">
           <label className="text-[10px] font-black uppercase text-slate-400 ml-1">
             Montant (MRU)
@@ -165,7 +174,6 @@ const RetraitClientForm = ({ onClose, onSuccess }) => {
             <input
               type="number"
               required
-              max={formData.clientSolde} // HTML5 validation
               value={formData.montant}
               onChange={(e) =>
                 setFormData({ ...formData, montant: e.target.value })
@@ -174,15 +182,18 @@ const RetraitClientForm = ({ onClose, onSuccess }) => {
               placeholder="0.00"
             />
           </div>
-          {formData.clientSolde > 0 && (
-            <p className="text-[9px] text-slate-400 ml-1">
-              Max disponible: {formData.clientSolde.toLocaleString()} MRU
+          <div className="flex items-center gap-1 ml-1 text-blue-500">
+            <Info size={12} />
+            <p className="text-[9px] font-bold italic">
+              Retrait autorisé au-delà du solde.
             </p>
-          )}
+          </div>
         </div>
+
+        {/* MODE PAIEMENT */}
         <div className="space-y-2">
           <label className="text-[10px] font-black uppercase text-slate-400 ml-1">
-            Mode
+            Mode de Paiement
           </label>
           <select
             value={formData.modePaiement}
@@ -198,9 +209,10 @@ const RetraitClientForm = ({ onClose, onSuccess }) => {
         </div>
       </div>
 
+      {/* DESCRIPTION */}
       <div className="space-y-2">
         <label className="text-[10px] font-black uppercase text-slate-400 ml-1">
-          Description / Motif
+          Motif du retrait
         </label>
         <div className="relative">
           <FileText className="absolute left-4 top-4 size-4 text-slate-400" />
@@ -209,29 +221,30 @@ const RetraitClientForm = ({ onClose, onSuccess }) => {
             onChange={(e) =>
               setFormData({ ...formData, description: e.target.value })
             }
-            placeholder="Ex: Retrait pour frais personnels..."
+            placeholder="Ex: Avance sur salaire, Prêt exceptionnel..."
             className="w-full pl-12 pr-4 py-3 bg-slate-50 rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-red-500 h-24 resize-none"
           />
         </div>
       </div>
 
-      <div className="flex gap-4">
+      {/* BOUTONS ACTIONS */}
+      <div className="flex gap-4 pt-2">
         <button
           type="button"
           onClick={onClose}
-          className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase"
+          className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase transition-all hover:bg-slate-200"
         >
           Annuler
         </button>
         <button
           type="submit"
           disabled={loading}
-          className="flex-1 py-4 bg-red-500 hover:bg-red-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+          className="flex-1 py-4 bg-red-500 hover:bg-red-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-200"
         >
           {loading ? (
             <Loader2 className="animate-spin size-4" />
           ) : (
-            "Confirmer le retrait"
+            "Valider le Retrait"
           )}
         </button>
       </div>

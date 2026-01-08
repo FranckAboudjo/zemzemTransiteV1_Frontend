@@ -15,6 +15,7 @@ import LayoutWrapper from "./Layout/LayoutWrapper";
 // --- PAGES ---
 // Authentification
 import Login from "./pages/auth/Login";
+import Restricted from "./pages/Restricted";
 
 // Dashboard & Profil
 import Dashboard from "./pages/dashboard/Dashboard";
@@ -60,6 +61,7 @@ const App = () => {
               </PublicRoute>
             }
           />
+          <Route path="/restrictions" element={<Restricted />} />
           {/* Redirection automatique vers le dashboard si l'utilisateur arrive sur la racine */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           {/* ==========================================================
@@ -121,7 +123,7 @@ const App = () => {
           {/* ==========================================================
               3. GESTION DES ERREURS
               ========================================================== */}
-          <Route path="*" element={<NotFound />} />
+          <Route path="*" element={<Restricted />} />
         </Routes>
       </Router>
     </AuthProvider>
