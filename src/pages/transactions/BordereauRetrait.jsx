@@ -8,6 +8,7 @@ import {
   Image,
 } from "@react-pdf/renderer";
 
+// PALETTE ÉPURÉE ZEMZEM (Harmonisée avec Versement)
 const COLORS = {
   PRIMARY_RED: "#EF233C",
   DARK_BLUE: "#2B2D42",
@@ -40,152 +41,232 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontSize: 18,
     fontWeight: "bold",
+    color: COLORS.DARK_BLUE,
+    textTransform: "uppercase",
+  },
+  referenceText: {
+    fontSize: 10,
+    marginTop: 4,
     color: COLORS.PRIMARY_RED,
-    textTransform: "uppercase",
-  },
-  refText: { fontSize: 9, color: COLORS.LIGHT_BLUE, marginTop: 4 },
-  section: { marginBottom: 25 },
-  sectionTitle: {
-    fontSize: 8,
-    fontWeight: "black",
-    color: COLORS.LIGHT_BLUE,
-    textTransform: "uppercase",
-    tracking: 1.5,
-    marginBottom: 10,
-    borderBottomWidth: 0.5,
-    borderBottomColor: COLORS.BORDER,
-    paddingBottom: 3,
-  },
-  row: { flexDirection: "row", marginBottom: 8 },
-  label: {
-    width: 120,
-    fontSize: 8,
-    color: COLORS.LIGHT_BLUE,
     fontWeight: "bold",
-    textTransform: "uppercase",
   },
-  value: { flex: 1, fontSize: 10, fontWeight: "bold", color: COLORS.DARK_BLUE },
-  amountBox: {
-    backgroundColor: COLORS.SOFT_GRAY,
-    padding: 15,
-    borderRadius: 8,
+  infoSection: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 40,
+  },
+  infoBox: {
+    width: "45%",
+  },
+  label: {
+    fontSize: 8,
+    color: COLORS.LIGHT_BLUE,
+    textTransform: "uppercase",
+    marginBottom: 4,
+    fontWeight: "bold",
+  },
+  value: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: COLORS.DARK_BLUE,
+  },
+  table: {
     marginTop: 10,
+  },
+  tableHeader: {
+    flexDirection: "row",
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.DARK_BLUE,
+    paddingBottom: 8,
+    paddingHorizontal: 5,
+  },
+  tableRow: {
+    flexDirection: "row",
+    paddingVertical: 15,
+    paddingHorizontal: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.SOFT_GRAY,
+    alignItems: "center",
+  },
+  colDesc: { flex: 3 },
+  colAmount: { flex: 1, textAlign: "right" },
+
+  totalContainer: {
+    marginTop: 20,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+  totalBox: {
+    width: "40%",
+    backgroundColor: COLORS.PRIMARY_RED, // Rouge pour le retrait (débit)
+    padding: 12,
+    borderRadius: 2,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  totalLabel: {
-    fontSize: 9,
-    fontWeight: "black",
-    color: COLORS.DARK_BLUE,
-    textTransform: "uppercase",
-  },
-  totalValue: { fontSize: 16, fontWeight: "black", color: COLORS.PRIMARY_RED },
-  footer: {
-    position: "absolute",
-    bottom: 40,
-    left: 50,
-    right: 50,
-    borderTopWidth: 0.5,
-    borderTopColor: COLORS.BORDER,
-    paddingTop: 15,
-    textAlign: "center",
-  },
-  footerText: { fontSize: 7, color: COLORS.LIGHT_BLUE, marginBottom: 2 },
+  totalLabel: { color: COLORS.WHITE, fontSize: 9, fontWeight: "bold" },
+  totalValue: { color: COLORS.WHITE, fontSize: 13, fontWeight: "bold" },
+
   signatureSection: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 40,
+    marginTop: 80,
   },
   signatureBox: {
-    width: "45%",
-    borderTopWidth: 0.5,
-    borderTopColor: COLORS.BORDER,
-    paddingTop: 10,
+    width: "40%",
+    textAlign: "center",
   },
-  signatureSpace: { height: 60 },
+  signatureSpace: {
+    height: 70,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.BORDER,
+    marginBottom: 10,
+  },
+  footer: {
+    position: "absolute",
+    bottom: 30,
+    left: 50,
+    right: 50,
+    textAlign: "center",
+    borderTopWidth: 1,
+    borderTopColor: COLORS.SOFT_GRAY,
+    paddingTop: 15,
+  },
+  footerText: {
+    fontSize: 7,
+    color: COLORS.LIGHT_BLUE,
+    lineHeight: 1.5,
+  },
 });
 
-const BordereauRetrait = ({ data }) => (
-  <Document>
-    <Page size="A4" style={styles.page}>
-      <View style={styles.header}>
-        <View>
-          <Text
-            style={{
-              fontSize: 20,
-              fontWeight: "black",
-              color: COLORS.PRIMARY_RED,
-            }}
-          >
-            ZEMZEM
-          </Text>
+const BordereauRetrait = ({ data }) => {
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        {/* HEADER */}
+        <View style={styles.header}>
+          <Image src="/assets/logo.png" style={styles.logo} />
+          <View style={styles.titleContainer}>
+            <Text style={styles.mainTitle}>Bordereau de Retrait</Text>
+            <Text style={styles.referenceText}>
+              REF : {data.reference || "N/A"}
+            </Text>
+          </View>
         </View>
-        <View style={styles.titleContainer}>
-          <Text style={styles.mainTitle}>Bordereau de Retrait</Text>
-          <Text style={styles.refText}>Réf: {data.reference}</Text>
-          <Text style={styles.refText}>
-            Date: {new Date(data.date).toLocaleString()}
-          </Text>
-        </View>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Bénéficiaire</Text>
-        <View style={styles.row}>
-          <Text style={styles.label}>Nom du Client :</Text>
-          <Text style={styles.value}>
-            {data.idClient?.nom || "Client non spécifié"}
-          </Text>
+        {/* INFOS CLIENT & DATE */}
+        <View style={styles.infoSection}>
+          <View style={styles.infoBox}>
+            <Text style={styles.label}>Bénéficiaire</Text>
+            <Text style={styles.value}>
+              {data.idClient?.nom || "Client Divers"}
+            </Text>
+            <Text style={{ fontSize: 9, marginTop: 2 }}>
+              Mode de paiement : {data.modePaiement || "Espèces"}
+            </Text>
+          </View>
+          <View style={[styles.infoBox, { textAlign: "right" }]}>
+            <Text style={styles.label}>Date de l'opération</Text>
+            <Text style={styles.value}>
+              {new Date(data.date).toLocaleDateString("fr-FR")} à{" "}
+              {new Date(data.date).toLocaleTimeString("fr-FR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Text>
+            <Text
+              style={{ fontSize: 9, marginTop: 2, color: COLORS.PRIMARY_RED }}
+            >
+              Débit du compte client
+            </Text>
+          </View>
         </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Mode de Paiement :</Text>
-          <Text style={styles.value}>{data.modePaiement || "Espèces"}</Text>
-        </View>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Détails de la Transaction</Text>
-        <View style={styles.row}>
-          <Text style={styles.label}>Motif :</Text>
-          <Text style={styles.value}>
-            {data.description || "Retrait de fonds"}
-          </Text>
-        </View>
-        <View style={styles.amountBox}>
-          <Text style={styles.totalLabel}>Montant Décaissé</Text>
-          <Text style={styles.totalValue}>
-            {data.montant?.toLocaleString()} MRU
-          </Text>
-        </View>
-      </View>
+        {/* TABLEAU */}
+        <View style={styles.table}>
+          <View style={styles.tableHeader}>
+            <Text style={[styles.label, styles.colDesc]}>Désignation</Text>
+            <Text style={[styles.label, styles.colAmount]}>Montant Retiré</Text>
+          </View>
 
-      <View style={styles.signatureSection}>
-        <View style={styles.signatureBox}>
-          <Text style={styles.label}>Décharge Client (Signature)</Text>
-          <View style={styles.signatureSpace} />
+          <View style={styles.tableRow}>
+            <View style={styles.colDesc}>
+              <Text style={{ fontWeight: "bold", fontSize: 11 }}>
+                Retrait de fonds
+              </Text>
+              <Text
+                style={{ fontSize: 9, color: COLORS.LIGHT_BLUE, marginTop: 3 }}
+              >
+                {data.description || "Aucune description fournie"}
+              </Text>
+            </View>
+            <Text
+              style={[styles.colAmount, { fontWeight: "bold", fontSize: 11 }]}
+            >
+              {data.montant} MRU
+            </Text>
+          </View>
         </View>
-        <View style={styles.signatureBox}>
-          <Text style={styles.label}>Autorisation Caisse</Text>
-          <View style={styles.signatureSpace} />
-        </View>
-      </View>
 
-      <View style={styles.footer}>
+        {/* TOTAL BOX (En rouge pour symboliser le retrait) */}
+        <View style={styles.totalContainer}>
+          <View style={styles.totalBox}>
+            <Text style={styles.totalLabel}>TOTAL DÉCAISSÉ</Text>
+            <Text style={styles.totalValue}>{data.montant} MRU</Text>
+          </View>
+        </View>
+
         <Text
-          style={[
-            styles.footerText,
-            { fontWeight: "bold", color: COLORS.DARK_BLUE },
-          ]}
+          style={{
+            marginTop: 15,
+            fontSize: 8,
+            fontStyle: "italic",
+            color: COLORS.LIGHT_BLUE,
+          }}
         >
-          ZEMZEM GROUP - TRANSIT & LOGISTIQUE
+          Arrêté le présent bordereau à la somme de : {data.montant} MRU
         </Text>
-        <Text style={styles.footerText}>
-          Tevragh Zeina Ilot 1, Nouakchott, Mauritanie | +222 20 70 11 64
-        </Text>
-      </View>
-    </Page>
-  </Document>
-);
+
+        {/* SIGNATURES */}
+        <View style={styles.signatureSection}>
+          <View style={styles.signatureBox}>
+            <Text style={styles.label}>Décharge Bénéficiaire</Text>
+            <View style={styles.signatureSpace} />
+            <Text style={{ fontSize: 7, color: COLORS.LIGHT_BLUE }}>
+              (Signature précédée de la mention "Bon pour retrait")
+            </Text>
+          </View>
+          <View style={styles.signatureBox}>
+            <Text style={styles.label}>Caisse & Autorisation</Text>
+            <View style={styles.signatureSpace} />
+            <Text style={{ fontSize: 7, color: COLORS.LIGHT_BLUE }}>
+              Cachet ZemZem Group
+            </Text>
+          </View>
+        </View>
+
+        {/* FOOTER */}
+        <View style={styles.footer}>
+          <Text
+            style={[
+              styles.footerText,
+              { fontWeight: "bold", color: COLORS.DARK_BLUE },
+            ]}
+          >
+            ZEMZEM GROUP - TRANSIT & LOGISTIQUE
+          </Text>
+          <Text style={styles.footerText}>
+            Tevragh Zeina Ilot 1, Nouakchott, Mauritanie | +222 20 70 11 64
+          </Text>
+          <Text style={[styles.footerText, { marginTop: 5, fontSize: 6 }]}>
+            ID Transaction : {data._id} | Généré le{" "}
+            {new Date().toLocaleString()}
+          </Text>
+        </View>
+      </Page>
+    </Document>
+  );
+};
 
 export default BordereauRetrait;

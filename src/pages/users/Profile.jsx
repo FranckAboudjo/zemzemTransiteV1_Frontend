@@ -13,18 +13,12 @@ import {
   Landmark,
   Wallet,
   Clock,
-<<<<<<< HEAD
   Download, // Nouvel import pour l'icône
-=======
->>>>>>> d5a636149ce362b60c3e03f7413754cfbc65ac07
 } from "lucide-react";
 import toast from "react-hot-toast";
 import API from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
-<<<<<<< HEAD
 import { exportToExcel } from "./ExportExcel"; // Import de la fonction
-=======
->>>>>>> d5a636149ce362b60c3e03f7413754cfbc65ac07
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -42,10 +36,6 @@ const Profile = () => {
     isDangerous: false,
   });
 
-<<<<<<< HEAD
-=======
-  // Fonctions de déclenchement (Stubs à adapter selon vos fonctions parentes si nécessaire)
->>>>>>> d5a636149ce362b60c3e03f7413754cfbc65ac07
   const triggerResetPassword = () => {
     setConfirmConfig({
       show: true,
@@ -153,10 +143,6 @@ const Profile = () => {
             </div>
 
             <div className="bg-slate-900 rounded-2xl md:rounded-3xl p-5 md:p-6 w-full lg:min-w-[260px] lg:w-auto text-white shadow-2xl shadow-slate-900/30 border border-slate-800 relative">
-<<<<<<< HEAD
-=======
-              {/* Bouton de gestion intégré au solde sur mobile pour gagner de la place */}
->>>>>>> d5a636149ce362b60c3e03f7413754cfbc65ac07
               <button
                 onClick={() => setShowManageModal(true)}
                 className="absolute top-4 right-4 p-2 bg-slate-800 rounded-lg hover:bg-[#EF233C] transition-colors"
@@ -179,7 +165,6 @@ const Profile = () => {
           </div>
         </div>
 
-<<<<<<< HEAD
         {/* --- TABS & EXPORT --- */}
         <div className="flex items-center justify-between border-b border-slate-200 px-4 md:px-6 overflow-x-auto no-scrollbar whitespace-nowrap">
           <div className="flex gap-4 md:gap-8">
@@ -207,30 +192,12 @@ const Profile = () => {
               <span className="hidden sm:inline">Exporter Excel</span>
             </button>
           )}
-=======
-        {/* --- TABS --- (Scrollable sur mobile) */}
-        <div className="flex gap-4 md:gap-8 border-b border-slate-200 px-4 md:px-6 overflow-x-auto no-scrollbar whitespace-nowrap">
-          <TabButton
-            label="Historique"
-            active={activeTab === "transactions"}
-            onClick={() => setActiveTab("transactions")}
-          />
-          <TabButton
-            label="Détails de l'Agent"
-            active={activeTab === "informations"}
-            onClick={() => setActiveTab("informations")}
-          />
->>>>>>> d5a636149ce362b60c3e03f7413754cfbc65ac07
         </div>
 
         {/* --- CONTENT --- */}
         <div className="transition-all duration-300">
           {activeTab === "transactions" ? (
             <div className="space-y-3">
-<<<<<<< HEAD
-=======
-              {/* Desktop Table View */}
->>>>>>> d5a636149ce362b60c3e03f7413754cfbc65ac07
               <div className="hidden md:block bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
                 <div className="max-h-[600px] overflow-y-auto">
                   <table className="w-full text-left border-collapse">
@@ -250,10 +217,6 @@ const Profile = () => {
                 </div>
               </div>
 
-<<<<<<< HEAD
-=======
-              {/* Mobile List View */}
->>>>>>> d5a636149ce362b60c3e03f7413754cfbc65ac07
               <div className="md:hidden space-y-3">
                 {transactions.length > 0 ? (
                   transactions.map((t) => <MobileCard key={t._id} t={t} />)
@@ -297,11 +260,7 @@ const Profile = () => {
         </div>
       </div>
 
-<<<<<<< HEAD
       {/* --- MODALS --- (Identiques à votre code initial) */}
-=======
-      {/* --- MODAL GESTION (Responsive) --- */}
->>>>>>> d5a636149ce362b60c3e03f7413754cfbc65ac07
       {showManageModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white rounded-t-[2rem] sm:rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl animate-slideUp sm:animate-fadeIn">
@@ -352,10 +311,6 @@ const Profile = () => {
         </div>
       )}
 
-<<<<<<< HEAD
-=======
-      {/* --- CONFIRMATION MODAL --- */}
->>>>>>> d5a636149ce362b60c3e03f7413754cfbc65ac07
       {confirmConfig.show && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
           <div className="bg-white rounded-[2rem] w-full max-w-xs overflow-hidden p-6 md:p-8 text-center shadow-2xl border border-slate-100 animate-fadeIn">
@@ -399,12 +354,7 @@ const Profile = () => {
   );
 };
 
-<<<<<<< HEAD
 /* --- MINI COMPOSANTS (Inchangés) --- */
-=======
-/* --- MINI COMPOSANTS RESPONSIVE --- */
-
->>>>>>> d5a636149ce362b60c3e03f7413754cfbc65ac07
 const MobileCard = ({ t }) => {
   const isPositive = t.type === "Rechargement" || t.type === "Remboursement";
   return (

@@ -42,6 +42,7 @@ import Liquidations from "./pages/transactions/Liquidations";
 import InitializationPage from "./pages/InitializationPage";
 import UnderConstruction from "./pages/UnderConstruction";
 import NotFound from "./pages/NotFound";
+import Depenses from "./pages/depenses/Depenses";
 
 const App = () => {
   return (
@@ -94,6 +95,7 @@ const App = () => {
                 {/* Gestion Financière */}
                 <Route path="/caisse" element={<Caisse />} />
                 <Route path="/liquidations" element={<Liquidations />} />
+                <Route path="/depenses" element={<Depenses />} />
 
                 {/* Documents & Suivi */}
                 <Route path="/facture" element={<UnderConstruction />} />

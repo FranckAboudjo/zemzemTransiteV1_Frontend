@@ -11,6 +11,10 @@ import {
   AlertTriangle,
   HardDrive,
   Edit3,
+  Plus,
+  Trash2,
+  Tag,
+  X,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import API from "../../utils/axiosInstance";
@@ -18,7 +22,7 @@ import { API_PATHS } from "../../utils/apiPaths";
 import Modal from "../../components/ui/Modal";
 
 const SettingsPage = () => {
-  // --- ÉTATS ---
+  // --- ÉTATS EXISTANTS ---
   const [activeTab, setActiveTab] = useState("company");
   const [isLoading, setIsLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -26,14 +30,18 @@ const SettingsPage = () => {
   const [resetLogs, setResetLogs] = useState([]);
   const [isResetting, setIsResetting] = useState(false);
 
-  // Données Utilisateur (depuis localStorage)
+  // --- NOUVEAUX ÉTATS POUR DÉPENSES ---
+  const [categories, setCategories] = useState([]);
+  const [isCatModalOpen, setIsCatModalOpen] = useState(false);
+  const [editingCat, setEditingCat] = useState(null); // null pour ajout, {id, nom} pour modif
+  const [catName, setCatName] = useState("");
+
   const userDataLocal = JSON.parse(
     localStorage.getItem("_appTransit_user") || "{}"
   );
   const isAdmin = userDataLocal.role === "admin";
   const currentUserId = userDataLocal._id || userDataLocal.id;
 
-  // Données de l'API
   const [companyData, setCompanyData] = useState({
     nomResponsable: "",
     nomEntreprise: "",
@@ -55,7 +63,6 @@ const SettingsPage = () => {
     newPassword: "",
   });
 
-  // États du Modal Reset
   const [showResetModal, setShowResetModal] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -63,16 +70,16 @@ const SettingsPage = () => {
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [resCompany, resMe] = await Promise.all([
+      const [resCompany, resMe, resCats] = await Promise.all([
         API.get(API_PATHS.INITIALISATION.CHECK_INIT),
         API.get(API_PATHS.AUTH.ME),
+        isAdmin
+          ? API.get(API_PATHS.CATDEPENSE.GET_ALL_CATDEPENSE)
+          : Promise.resolve({ data: { success: true, data: [] } }),
       ]);
 
-      if (resCompany.data.success) {
-        // Si company est null (base vide), on garde l'objet initial avec des chaînes vides
-        if (resCompany.data.data.company) {
-          setCompanyData(resCompany.data.data.company);
-        }
+      if (resCompany.data.success && resCompany.data.data.company) {
+        setCompanyData(resCompany.data.data.company);
       }
 
       if (resMe.data.success) {
@@ -85,9 +92,12 @@ const SettingsPage = () => {
           solde: profile.solde || 0,
         }));
       }
+
+      if (isAdmin && resCats.data.success) {
+        setCategories(resCats.data.data);
+      }
     } catch (err) {
-      console.log(err);
-      toast.error(err.message || "Erreur de synchronisation avec le serveur");
+      toast.error("Erreur de synchronisation");
     } finally {
       setIsLoading(false);
     }
@@ -97,20 +107,16 @@ const SettingsPage = () => {
     fetchData();
   }, []);
 
-  // --- HANDLERS ---
-
+  // --- HANDLERS EXISTANTS ---
   const handleUpdateCompany = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      // Correction du chemin vers API_PATHS.INITIALISATION.UPDATE
       const response = await API.patch(
         API_PATHS.INITIALISATION.UPDATE,
         companyData
       );
-      if (response.data.success) {
-        toast.success("Structure mise à jour !");
-      }
+      if (response.data.success) toast.success("Structure mise à jour !");
     } catch (err) {
       toast.error("Échec de la mise à jour");
     } finally {
@@ -126,25 +132,20 @@ const SettingsPage = () => {
         nom: profileData.nom,
         prenoms: profileData.prenoms,
       });
-
       if (response.data.success) {
-        // 1. On récupère l'ancien objet pour ne pas perdre le rôle/token
         const currentUser = JSON.parse(
           localStorage.getItem("_appTransit_user") || "{}"
         );
-
-        // 2. On fusionne avec les nouvelles infos
-        const updatedUser = {
-          ...currentUser,
-          nom: profileData.nom,
-          prenoms: profileData.prenoms,
-        };
-
-        // 3. On sauvegarde dans le LocalStorage
-        localStorage.setItem("_appTransit_user", JSON.stringify(updatedUser));
-
+        localStorage.setItem(
+          "_appTransit_user",
+          JSON.stringify({
+            ...currentUser,
+            nom: profileData.nom,
+            prenoms: profileData.prenoms,
+          })
+        );
         toast.success("Profil mis à jour !");
-        fetchData(); // Pour rafraîchir les soldes si nécessaire
+        fetchData();
       }
     } catch (err) {
       toast.error(err.message || "Erreur profil");
@@ -168,82 +169,107 @@ const SettingsPage = () => {
         setProfileData((p) => ({ ...p, oldPassword: "", newPassword: "" }));
       }
     } catch (err) {
-      toast.error(
-        err.response?.data?.message || "Ancien mot de passe incorrect"
-      );
+      toast.error(err.message || "Ancien mot de passe incorrect");
     } finally {
       setSubmitting(false);
     }
   };
 
+  // --- NOUVEAUX HANDLERS : CATÉGORIES ---
+  const handleSaveCategory = async (e) => {
+    e.preventDefault();
+    if (!catName) return toast.error("Le nom est requis");
+    setSubmitting(true);
+    try {
+      if (editingCat) {
+        const url = API_PATHS.CATDEPENSE.UPDATE_CATDEPENSE.replace(
+          ":id",
+          editingCat._id
+        );
+        await API.patch(url, { nom: catName });
+        toast.success("Catégorie modifiée");
+      } else {
+        await API.post(API_PATHS.CATDEPENSE.CREATE_CATDEPENSE, {
+          nom: catName,
+        });
+        toast.success("Catégorie ajoutée");
+      }
+      setCatName("");
+      setIsCatModalOpen(false);
+      setEditingCat(null);
+      fetchData();
+    } catch (err) {
+      toast.error(err.message || "Action échouée");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteCategory = async (id) => {
+    if (window.confirm("Voulez-vous supprimer cette catégorie ?")) {
+      try {
+        const url = API_PATHS.CATDEPENSE.DELETE_CATDEPENSE.replace(":id", id);
+        await API.delete(url);
+        toast.success("Supprimé");
+        fetchData();
+      } catch (err) {
+        toast.error(err.message || "Erreur de suppression");
+      }
+    }
+  };
+
   const handleResetSystem = async () => {
     if (!confirmPassword) return toast.error("Mot de passe requis");
-
     setIsResetting(true);
     setResetProgress(0);
     setResetLogs(["Démarrage de la purge de sécurité (20s estimées)..."]);
 
-    // Fonction d'animation fluide
     const animateTo = (target, duration) => {
       return new Promise((resolve) => {
         const start = resetProgress;
         const startTime = performance.now();
-
         const update = (currentTime) => {
           const elapsed = currentTime - startTime;
           const progress = Math.min(elapsed / duration, 1);
-
-          // Easing function pour un mouvement plus naturel (easeOutQuart)
           const ease = 1 - Math.pow(1 - progress, 4);
           const currentVal = Math.floor(start + (target - start) * ease);
-
           setResetProgress(currentVal);
-
-          if (progress < 1) {
-            requestAnimationFrame(update);
-          } else {
-            resolve();
-          }
+          if (progress < 1) requestAnimationFrame(update);
+          else resolve();
         };
         requestAnimationFrame(update);
       });
     };
 
     try {
-      // Séquence de 20 secondes décomposée
       setResetLogs((prev) => [...prev, "Vérification des accès root..."]);
-      await animateTo(15, 4000); // 4s
-
+      await animateTo(15, 4000);
       setResetLogs((prev) => [
         ...prev,
         "Destruction des archives BL et Factures...",
       ]);
-      await animateTo(40, 6000); // 6s
-
+      await animateTo(40, 6000);
       setResetLogs((prev) => [
         ...prev,
         "Nettoyage des comptes clients et soldes...",
       ]);
-      await animateTo(70, 6000); // 6s
-
+      await animateTo(70, 6000);
       setResetLogs((prev) => [
         ...prev,
         "Finalisation de la purge sur le serveur...",
       ]);
 
-      // Appel API à ce moment là
       const response = await API.post(API_PATHS.INITIALISATION.RESET, {
         password: confirmPassword,
       });
 
       if (response.data.success) {
-        await animateTo(100, 4000); // Les 4 dernières secondes
+        await animateTo(100, 4000);
         setResetLogs((prev) => [
           ...prev,
           "✅ Système totalement réinitialisé.",
         ]);
-        toast.success("Purge terminée avec succès !");
-
+        toast.success("Purge terminée !");
         setTimeout(() => {
           localStorage.clear();
           window.location.href = "/login";
@@ -252,7 +278,7 @@ const SettingsPage = () => {
     } catch (err) {
       setResetLogs((prev) => [
         ...prev,
-        "❌ ÉCHEC : " + (err.response?.data?.message || "Erreur serveur"),
+        "❌ ÉCHEC : " + (err.message || "Erreur serveur"),
       ]);
       setResetProgress(0);
       setIsResetting(false);
@@ -266,7 +292,6 @@ const SettingsPage = () => {
       <Toaster position="top-right" />
 
       <div className="max-w-6xl mx-auto space-y-8">
-        {/* HEADER */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-black text-slate-900 uppercase flex items-center gap-3 tracking-tighter">
@@ -279,15 +304,23 @@ const SettingsPage = () => {
           </div>
         </header>
 
-        {/* NAVIGATION TABS (Style BLDetails) */}
+        {/* NAVIGATION TABS */}
         <div className="flex gap-8 border-b border-slate-200 px-4">
           {isAdmin && (
-            <TabButton
-              active={activeTab === "company"}
-              onClick={() => setActiveTab("company")}
-              label="Entreprise"
-              icon={<Building2 size={16} />}
-            />
+            <>
+              <TabButton
+                active={activeTab === "company"}
+                onClick={() => setActiveTab("company")}
+                label="Entreprise"
+                icon={<Building2 size={16} />}
+              />
+              <TabButton
+                active={activeTab === "depense"}
+                onClick={() => setActiveTab("depense")}
+                label="Dépense"
+                icon={<Wallet size={16} />}
+              />
+            </>
           )}
           <TabButton
             active={activeTab === "profile"}
@@ -299,7 +332,8 @@ const SettingsPage = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            {activeTab === "company" && isAdmin ? (
+            {/* TAB ENTREPRISE */}
+            {activeTab === "company" && isAdmin && (
               <section className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-xl space-y-8 animate-fadeIn">
                 <div className="flex items-center gap-4">
                   <div className="size-12 rounded-2xl bg-slate-900 flex items-center justify-center text-white shadow-lg shadow-slate-200">
@@ -310,13 +344,11 @@ const SettingsPage = () => {
                       Configuration Structure
                     </h2>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Identité et coordonnées de l'entreprise
+                      Identité et coordonnées
                     </p>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Ligne 1 : Nom et Responsable */}
                   <Input
                     label="Nom de l'Entreprise"
                     value={companyData?.nomEntreprise || ""}
@@ -331,8 +363,6 @@ const SettingsPage = () => {
                       setCompanyData({ ...companyData, nomResponsable: v })
                     }
                   />
-
-                  {/* Ligne 2 : Email et Contact */}
                   <Input
                     label="Adresse Email"
                     type="email"
@@ -348,8 +378,6 @@ const SettingsPage = () => {
                       setCompanyData({ ...companyData, contact: v })
                     }
                   />
-
-                  {/* Ligne 3 : Pays et Adresse (Adresse prend toute la largeur) */}
                   <Input
                     label="Pays"
                     value={companyData.pays || ""}
@@ -357,59 +385,116 @@ const SettingsPage = () => {
                       setCompanyData({ ...companyData, pays: v })
                     }
                   />
-                  <div className="md:col-span-1">
-                    <Input
-                      label="Adresse Siège"
-                      value={companyData.adresse || ""}
-                      onChange={(v) =>
-                        setCompanyData({ ...companyData, adresse: v })
-                      }
-                    />
-                  </div>
-
+                  <Input
+                    label="Adresse Siège"
+                    value={companyData.adresse || ""}
+                    onChange={(v) =>
+                      setCompanyData({ ...companyData, adresse: v })
+                    }
+                  />
                   <div className="md:col-span-2 space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
                       Description de l'activité
                     </label>
-                    <div className="relative group">
-                      <textarea
-                        rows="3"
-                        placeholder="Ex: Transit et divers..."
-                        className="w-full p-5 bg-slate-50 rounded-[1.5rem] font-bold text-slate-700 outline-none border-2 border-transparent focus:border-slate-900 transition-all resize-none"
-                        value={companyData?.descriptionActivite || ""}
-                        onChange={(e) =>
-                          setCompanyData({
-                            ...companyData,
-                            descriptionActivite: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
+                    <textarea
+                      rows="3"
+                      className="w-full p-5 bg-slate-50 rounded-[1.5rem] font-bold text-slate-700 outline-none border-2 border-transparent focus:border-slate-900 transition-all resize-none"
+                      value={companyData?.descriptionActivite || ""}
+                      onChange={(e) =>
+                        setCompanyData({
+                          ...companyData,
+                          descriptionActivite: e.target.value,
+                        })
+                      }
+                    />
                   </div>
                 </div>
+                <button
+                  onClick={handleUpdateCompany}
+                  disabled={submitting}
+                  className="group flex items-center gap-3 bg-slate-900 text-white px-10 py-5 rounded-[1.5rem] font-black text-xs uppercase shadow-xl hover:bg-[#EF233C] transition-all disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : (
+                    <Save size={18} />
+                  )}
+                  Mettre à jour la structure
+                </button>
+              </section>
+            )}
 
-                <div className="pt-4">
+            {/* NOUVEAU TAB DÉPENSE (CATÉGORIES) */}
+            {activeTab === "depense" && isAdmin && (
+              <section className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-xl space-y-8 animate-fadeIn">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="size-12 rounded-2xl bg-[#EF233C] flex items-center justify-center text-white shadow-lg shadow-red-100">
+                      <Tag size={24} />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-black text-slate-900 uppercase">
+                        Catégories de Dépense
+                      </h2>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Gestion des étiquettes de décaissement
+                      </p>
+                    </div>
+                  </div>
                   <button
-                    onClick={handleUpdateCompany}
-                    disabled={submitting}
-                    className="group flex items-center gap-3 bg-slate-900 text-white px-10 py-5 rounded-[1.5rem] font-black text-xs uppercase shadow-xl hover:bg-[#EF233C] transition-all disabled:opacity-50"
+                    onClick={() => {
+                      setEditingCat(null);
+                      setCatName("");
+                      setIsCatModalOpen(true);
+                    }}
+                    className="flex items-center gap-2 bg-slate-900 text-white px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-[#EF233C] transition-all"
                   >
-                    {submitting ? (
-                      <Loader2 className="animate-spin" size={18} />
-                    ) : (
-                      <Save
-                        size={18}
-                        className="group-hover:scale-110 transition-transform"
-                      />
-                    )}
-                    {submitting
-                      ? "Enregistrement..."
-                      : "Mettre à jour la structure"}
+                    <Plus size={16} /> Nouvelle Catégorie
                   </button>
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {categories.length > 0 ? (
+                    categories.map((cat) => (
+                      <div
+                        key={cat._id}
+                        className="p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex justify-between items-center group hover:bg-white hover:shadow-md transition-all"
+                      >
+                        <span className="font-black text-slate-700 text-sm uppercase">
+                          {cat.nom}
+                        </span>
+                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => {
+                              setEditingCat(cat);
+                              setCatName(cat.nom);
+                              setIsCatModalOpen(true);
+                            }}
+                            className="p-2 bg-white text-blue-500 rounded-lg shadow-sm hover:bg-blue-50"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCategory(cat._id)}
+                            className="p-2 bg-white text-red-500 rounded-lg shadow-sm hover:bg-red-50"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="md:col-span-2 text-center py-10 text-slate-400 font-bold uppercase text-xs tracking-[0.2em]">
+                      Aucune catégorie enregistrée
+                    </div>
+                  )}
+                </div>
               </section>
-            ) : (
-              <section className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-xl space-y-8">
+            )}
+
+            {/* TAB PROFIL */}
+            {activeTab === "profile" && (
+              <section className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-xl space-y-8 animate-fadeIn">
                 <div className="flex items-center gap-4">
                   <div className="size-10 rounded-xl bg-[#EF233C] flex items-center justify-center text-white">
                     <User size={20} />
@@ -418,7 +503,6 @@ const SettingsPage = () => {
                     Mon Compte Personnel
                   </h2>
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <Input
                     label="Nom"
@@ -433,22 +517,20 @@ const SettingsPage = () => {
                     }
                   />
                 </div>
-
                 <button
                   onClick={handleUpdateProfile}
                   className="bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase hover:bg-slate-800"
                 >
                   Mettre à jour le nom
                 </button>
-
                 <div className="pt-8 border-t border-slate-100">
                   <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                    <Key size={14} /> Sécurité & Mot de passe
+                    <Key size={14} /> Sécurité
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input
                       type="password"
-                      placeholder="Mot de passe actuel"
+                      placeholder="Actuel"
                       className="p-4 bg-slate-50 rounded-2xl font-bold border-2 border-transparent focus:border-slate-200 outline-none text-sm"
                       value={profileData.oldPassword}
                       onChange={(e) =>
@@ -460,7 +542,7 @@ const SettingsPage = () => {
                     />
                     <input
                       type="password"
-                      placeholder="Nouveau mot de passe"
+                      placeholder="Nouveau"
                       className="p-4 bg-slate-50 rounded-2xl font-bold border-2 border-transparent focus:border-slate-200 outline-none text-sm"
                       value={profileData.newPassword}
                       onChange={(e) =>
@@ -503,15 +585,50 @@ const SettingsPage = () => {
         </div>
       </div>
 
-      {/* MODAL DE RÉINITIALISATION */}
+      {/* MODAL AJOUT/MODIF CATÉGORIE */}
+      <Modal
+        isOpen={isCatModalOpen}
+        onClose={() => setIsCatModalOpen(false)}
+        title={editingCat ? "Modifier la catégorie" : "Nouvelle catégorie"}
+      >
+        <form onSubmit={handleSaveCategory} className="p-6 space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase">
+              Libellé de la catégorie
+            </label>
+            <input
+              autoFocus
+              className="w-full p-5 bg-slate-50 rounded-2xl font-black text-xl border-2 border-transparent focus:border-slate-900 outline-none uppercase"
+              placeholder="Ex: LOYER, ELECTRICITÉ..."
+              value={catName}
+              onChange={(e) => setCatName(e.target.value)}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-[#EF233C] transition-all flex items-center justify-center gap-2"
+          >
+            {submitting ? (
+              <Loader2 className="animate-spin" size={18} />
+            ) : (
+              <Save size={18} />
+            )}
+            {editingCat
+              ? "Enregistrer les modifications"
+              : "Créer la catégorie"}
+          </button>
+        </form>
+      </Modal>
+
+      {/* MODAL DE RÉINITIALISATION EXISTANT */}
       <Modal
         isOpen={showResetModal}
-        onClose={() => !isResetting && setShowResetModal(false)} // Empêche de fermer pendant la purge
+        onClose={() => !isResetting && setShowResetModal(false)}
         title="Confirmation de Purge"
       >
         <div className="p-6 text-center space-y-6">
           {!isResetting ? (
-            // --- ÉTAPE 1 : FORMULAIRE DE CONFIRMATION ---
             <>
               <div className="size-20 bg-red-100 text-[#EF233C] rounded-3xl flex items-center justify-center mx-auto">
                 <AlertTriangle size={40} />
@@ -521,11 +638,9 @@ const SettingsPage = () => {
                   Action Irréversible
                 </h3>
                 <p className="text-sm font-bold text-slate-500">
-                  Veuillez saisir votre mot de passe administrateur pour
-                  confirmer la purge totale.
+                  Saisir mot de passe administrateur pour confirmer.
                 </p>
               </div>
-
               <input
                 type="password"
                 placeholder="Mot de passe admin..."
@@ -533,7 +648,6 @@ const SettingsPage = () => {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
               />
-
               <div className="flex gap-4">
                 <button
                   onClick={() => setShowResetModal(false)}
@@ -545,46 +659,39 @@ const SettingsPage = () => {
                   onClick={handleResetSystem}
                   className="flex-1 py-4 bg-[#EF233C] text-white rounded-2xl font-black text-xs uppercase shadow-lg shadow-red-200"
                 >
-                  Confirmer la Purge
+                  Confirmer Purge
                 </button>
               </div>
             </>
           ) : (
-            // --- ÉTAPE 2 : BARRE DE PROGRESSION ET LOGS ---
             <div className="space-y-6 animate-fadeIn">
-              {/* Remplacez votre barre de progression par celle-ci dans le Modal */}
               <div className="space-y-4">
                 <div className="flex justify-between items-end">
                   <div className="text-left">
                     <p className="text-[10px] font-black uppercase text-slate-400">
                       Statut de la purge
                     </p>
-                    <p className="text-sm font-black text-slate-700 uppercase tracking-tighter">
-                      {resetProgress < 100
-                        ? "Traitement en cours..."
-                        : "Terminé"}
+                    <p className="text-sm font-black text-slate-700 uppercase">
+                      {resetProgress < 100 ? "Traitement..." : "Terminé"}
                     </p>
                   </div>
                   <span className="text-2xl font-black text-[#EF233C]">
                     {resetProgress}%
                   </span>
                 </div>
-
                 <div className="w-full h-5 bg-slate-100 rounded-2xl p-1 overflow-hidden border border-slate-200">
                   <div
-                    className="h-full bg-gradient-to-r from-[#EF233C] to-[#ff4d61] rounded-xl shadow-[0_0_20px_rgba(239,35,60,0.3)]"
+                    className="h-full bg-gradient-to-r from-[#EF233C] to-[#ff4d61] rounded-xl"
                     style={{
                       width: `${resetProgress}%`,
-                      transition: "width 100ms linear", // Très courte transition pour lisser les micro-sauts
+                      transition: "width 100ms linear",
                     }}
                   />
                 </div>
               </div>
-
-              {/* CONSOLE DE LOGS */}
-              <div className="bg-slate-900 rounded-2xl p-4 h-48 overflow-y-auto text-left font-mono space-y-1 custom-scrollbar">
-                {resetLogs.map((log, index) => (
-                  <p key={index} className="text-[10px] text-emerald-400">
+              <div className="bg-slate-900 rounded-2xl p-4 h-48 overflow-y-auto text-left font-mono space-y-1">
+                {resetLogs.map((log, i) => (
+                  <p key={i} className="text-[10px] text-emerald-400">
                     <span className="text-slate-500 mr-2">
                       [{new Date().toLocaleTimeString()}]
                     </span>
@@ -593,10 +700,6 @@ const SettingsPage = () => {
                 ))}
                 <div className="animate-pulse inline-block w-2 h-3 bg-emerald-400 ml-1" />
               </div>
-
-              <p className="text-[10px] font-black text-slate-400 uppercase animate-pulse">
-                Veuillez ne pas fermer cette fenêtre...
-              </p>
             </div>
           )}
         </div>
@@ -605,8 +708,7 @@ const SettingsPage = () => {
   );
 };
 
-// --- SOUS-COMPOSANTS (Style BLDetails) ---
-
+// --- SOUS-COMPOSANTS ---
 const TabButton = ({ active, onClick, label, icon }) => (
   <button
     onClick={onClick}
@@ -639,7 +741,7 @@ const LoadingState = () => (
   <div className="h-screen flex flex-col items-center justify-center bg-[#F8F9FA]">
     <div className="size-12 border-4 border-[#EF233C] border-t-transparent rounded-full animate-spin mb-4"></div>
     <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em]">
-      Chargement des paramètres...
+      Chargement...
     </p>
   </div>
 );

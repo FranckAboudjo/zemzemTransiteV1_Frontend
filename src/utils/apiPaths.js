@@ -153,10 +153,27 @@ export const API_PATHS = {
   },
 
   RETRAIT_CLIENT: {
-    CREATE_RETRAIT_CLIENT: "/retrait-client/:id", //id du client
+    CREATE_RETRAIT_CLIENT: "/retrait-client/add/:id", //id du client
     GET_ALL_RETRAIT_CLIENT: "/retrait-client/",
     GET_ONE_RETRAIT_CLIENT: "/retrait-client/:id", //id du retrait
     UPDATE_RETRAIT_CLIENT: "/retrait-client/:id", //id du client
     DELETE_RETRAIT_CLIENT: "/retrait-client/:id", //id du retrait
+  },
+
+  CATDEPENSE: {
+    CREATE_CATDEPENSE: "/categorie-depense/",
+    GET_ALL_CATDEPENSE: "/categorie-depense/",
+    GET_ONE_CATDEPENSE: "/categorie-depense/:id", //id de la catdepense
+    UPDATE_CATDEPENSE: "/categorie-depense/:id", //id de la catdepense
+    DELETE_CATDEPENSE: "/categorie-depense/:id", //id de la catdepense
+  },
+
+  DEPENSES: {
+    CREATE_DEPENSE: "/depenses/",
+    GET_ALL_DEPENSES: "/depenses/",
+    GET_ONE_DEPENSE: "/depenses/:id", //id de la depense
+    UPDATE_DEPENSE: "/depenses/:id", //id de la depense
+    DELETE_DEPENSE: "/depenses/:id", //id de la depense
+    GET_DEPENSE_STATS: "/depenses/stats",
   },
 };

@@ -7,7 +7,6 @@ import {
   History,
   Users,
   Wallet,
-  Calendar,
   Edit2,
   Trash2,
   PieChart,
@@ -15,23 +14,30 @@ import {
   RefreshCw,
   Printer,
   UserCheck,
+  ArrowRightLeft, // Icone pour retraits
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Modal from "../../components/ui/Modal";
 import API from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
+import { pdf } from "@react-pdf/renderer";
+
+// --- IMPORTS DES COMPOSANTS EXTERNES ---
 import VersementClientForm from "./VersementClientForm";
 import RechargeCaisseForm from "./RechargeCaisseForm";
 import EditVersementClientForm from "./EditVersementClientForm";
-import { pdf } from "@react-pdf/renderer";
+import RetraitClientForm from "./RetraitClientForm"; // Nouveau
+import EditRetraitClientForm from "./EditRetraitClientForm"; // Nouveau
 import BordereauVersement from "./BordereauVersement";
+import BordereauRetrait from "./BordereauRetrait"; // Nouveau
 
 const Caisse = () => {
   // --- ÉTATS ---
   const [historiqueCaisse, setHistoriqueCaisse] = useState([]);
   const [versementsAgent, setVersementsAgent] = useState([]);
   const [rechargesCaisse, setRechargesCaisse] = useState([]);
-  const [versementsClient, setVersementsClient] = useState([]); // Nouvel état
+  const [versementsClient, setVersementsClient] = useState([]);
+  const [retraitsClient, setRetraitsClient] = useState([]); // Nouvel état pour les retraits
   const [balances, setBalances] = useState({ solde: 0, soldeDouane: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -43,9 +49,11 @@ const Caisse = () => {
 
   // --- MODALS ---
   const [isDepositOpen, setIsDepositOpen] = useState(false);
+  const [isRetraitOpen, setIsRetraitOpen] = useState(false); // Nouveau
   const [isRechargeOpen, setIsRechargeOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isEditClientOpen, setIsEditClientOpen] = useState(false);
+  const [isEditRetraitOpen, setIsEditRetraitOpen] = useState(false); // Nouveau
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
 
@@ -65,6 +73,7 @@ const Caisse = () => {
         resAgents,
         resRecharges,
         resVClient,
+        resRClient, // Nouveau
       ] = await Promise.all([
         API.get(API_PATHS.GETINFO.GET_INFO_CAISSE),
         API.get(API_PATHS.GETINFO.GET_INFO_CREDIT),
@@ -72,6 +81,7 @@ const Caisse = () => {
         API.get(API_PATHS.VERSEMENTAGENT.GET_ALL_VERSEMENT_AGENT),
         API.get(API_PATHS.RECHARGE.GET_ALL_RECHARGE),
         API.get(API_PATHS.VERSEMENTCLIENT.GET_ALL_VERSEMENT_CLIENT),
+        API.get(API_PATHS.RETRAIT_CLIENT.GET_ALL_RETRAIT_CLIENT), // Appel Retraits
       ]);
 
       setBalances({
@@ -82,6 +92,7 @@ const Caisse = () => {
       setVersementsAgent(resAgents.data?.data || []);
       setRechargesCaisse(resRecharges.data?.data || []);
       setVersementsClient(resVClient.data?.data || []);
+      setRetraitsClient(resRClient.data?.data || []); // Stockage Retraits
     } catch (err) {
       toast.error("Erreur de récupération des données");
     } finally {
@@ -93,10 +104,15 @@ const Caisse = () => {
     fetchData();
   }, []);
 
-  // --- GESTION ACTIONS ---
-  const handlePrint = async (item) => {
+  // --- GESTION ACTIONS (IMPRESSION) ---
+  const handlePrint = async (item, type) => {
     try {
-      const doc = <BordereauVersement data={item} />;
+      const doc =
+        type === "retrait" ? (
+          <BordereauRetrait data={item} />
+        ) : (
+          <BordereauVersement data={item} />
+        );
       const asPdf = pdf([]);
       asPdf.updateContainer(doc);
       const blob = await asPdf.toBlob();
@@ -107,10 +123,13 @@ const Caisse = () => {
     }
   };
 
+  // --- OUVERTURE MODALS EDITION ---
   const openEditModal = (transaction) => {
     setSelectedTransaction(transaction);
     if (activeTab === "versements_client") {
       setIsEditClientOpen(true);
+    } else if (activeTab === "retraits_client") {
+      setIsEditRetraitOpen(true);
     } else {
       setEditFormData({
         montant: transaction.montant,
@@ -125,22 +144,14 @@ const Caisse = () => {
     setIsDeleteOpen(true);
   };
 
+  // --- GESTION UPDATE (Agents & Recharges) ---
   const handleEdit = async (e) => {
     e.preventDefault();
     try {
-      const userData = JSON.parse(localStorage.getItem("_appTransit_user"));
-      const nomComplet = `${userData?.nom || ""} ${
-        userData?.prenoms || ""
-      }`.trim();
-
       const isRecharge = activeTab === "recharges";
       const payload = {
         montant: Number(editFormData.montant),
         description: editFormData.description,
-        ...(!isRecharge && {
-          typeOperation: selectedTransaction.typeOperation,
-          par: nomComplet || "Utilisateur Inconnu",
-        }),
       };
 
       const urlTemplate = isRecharge
@@ -160,8 +171,17 @@ const Caisse = () => {
     }
   };
 
+  // --- GESTION SUPPRESSION ---
   const handleDelete = async () => {
     try {
+      // 1. Récupérer l'ID de l'utilisateur connecté (celui qui fait l'action)
+      const userData = JSON.parse(localStorage.getItem("_appTransit_user"));
+      const idUser = userData?._id || userData?.id;
+
+      if (!idUser) {
+        return toast.error("Session expirée, veuillez vous reconnecter");
+      }
+
       let urlTemplate = "";
       if (activeTab === "recharges")
         urlTemplate = API_PATHS.RECHARGE.DELETE_RECHARGE;
@@ -169,11 +189,18 @@ const Caisse = () => {
         urlTemplate = API_PATHS.VERSEMENTAGENT.DELETE_VERSEMENT_AGENT;
       else if (activeTab === "versements_client")
         urlTemplate = API_PATHS.VERSEMENTCLIENT.DELETE_VERSEMENT_CLIENT;
+      else if (activeTab === "retraits_client")
+        urlTemplate = API_PATHS.RETRAIT_CLIENT.DELETE_RETRAIT_CLIENT;
 
       const url = urlTemplate.replace(":id", selectedTransaction._id);
-      await API.delete(url);
 
-      toast.success("Suppression réussie");
+      // 2. Envoyer la requête avec l'idUser dans l'objet 'data'
+      // Note : Pour un DELETE, Axios exige que le body soit passé dans une clé nommée 'data'
+      await API.delete(url, {
+        data: { idUser: idUser },
+      });
+
+      toast.success("Suppression réussie et soldes mis à jour");
       setIsDeleteOpen(false);
       fetchData();
     } catch (err) {
@@ -189,6 +216,7 @@ const Caisse = () => {
     if (activeTab === "agents") currentDataSource = versementsAgent;
     if (activeTab === "recharges") currentDataSource = rechargesCaisse;
     if (activeTab === "versements_client") currentDataSource = versementsClient;
+    if (activeTab === "retraits_client") currentDataSource = retraitsClient;
 
     const filtered = currentDataSource.filter((item) => {
       const itemDate = item.date
@@ -197,7 +225,8 @@ const Caisse = () => {
       const matchesSearch =
         item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.par?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.idClient?.nom?.toLowerCase().includes(searchTerm.toLowerCase());
+        item.idClient?.nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.reference?.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesDateDebut = dateDebut ? itemDate >= dateDebut : true;
       const matchesDateFin = dateFin ? itemDate <= dateFin : true;
@@ -231,6 +260,7 @@ const Caisse = () => {
     versementsAgent,
     rechargesCaisse,
     versementsClient,
+    retraitsClient,
     searchTerm,
     dateDebut,
     dateFin,
@@ -270,18 +300,24 @@ const Caisse = () => {
               {balances.solde?.toLocaleString()}{" "}
               <span className="text-xl text-white">MRU</span>
             </h1>
-            <div className="flex gap-4 mt-8">
+            <div className="flex flex-wrap gap-4 mt-8">
               <button
                 onClick={() => setIsDepositOpen(true)}
-                className="bg-emerald-500 hover:bg-emerald-600 px-6 py-3 rounded-2xl text-xs font-black uppercase flex items-center gap-2 transition-all"
+                className="bg-emerald-500 hover:bg-emerald-600 px-6 py-3 rounded-2xl text-xs font-black uppercase flex items-center gap-2 transition-all shadow-lg shadow-emerald-900/20"
               >
                 <ArrowDownLeft size={16} /> Versement Client
+              </button>
+              <button
+                onClick={() => setIsRetraitOpen(true)}
+                className="bg-red-500 hover:bg-red-600 px-6 py-3 rounded-2xl text-xs font-black uppercase flex items-center gap-2 transition-all shadow-lg shadow-red-900/20"
+              >
+                <ArrowUpRight size={16} /> Retrait Client
               </button>
               <button
                 onClick={() => setIsRechargeOpen(true)}
                 className="bg-white/10 hover:bg-white/20 px-6 py-3 rounded-2xl text-xs font-black uppercase flex items-center gap-2 transition-all"
               >
-                <PlusCircle size={16} /> Recharge Caisse
+                <PlusCircle size={16} /> Recharge
               </button>
             </div>
           </div>
@@ -316,7 +352,7 @@ const Caisse = () => {
 
       {/* FILTRES & TABS */}
       <div className="space-y-6 bg-white p-6 rounded-[2rem] border border-slate-50 shadow-sm">
-        <div className="flex flex-col md:flex-row justify-between gap-6">
+        <div className="flex flex-col md:row justify-between gap-6">
           <div className="flex gap-6 border-b overflow-x-auto no-scrollbar">
             {[
               {
@@ -330,6 +366,11 @@ const Caisse = () => {
                 label: "Versements Clients",
                 icon: <UserCheck size={14} />,
               },
+              {
+                id: "retraits_client",
+                label: "Retraits Clients",
+                icon: <ArrowRightLeft size={14} />,
+              }, // Nouvel onglet
               {
                 id: "recharges",
                 label: "Recharges",
@@ -378,27 +419,137 @@ const Caisse = () => {
         </div>
 
         {activeTab === "bilan" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Total Sorties
-              </span>
-              <div className="flex items-baseline gap-2 mt-2">
-                <span className="text-3xl font-black text-red-500">
-                  {stats.debit.toLocaleString()}
+          <div className="space-y-8">
+            {/* Cartes de résumé rapide */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="bg-emerald-50 p-6 rounded-[2rem] border border-emerald-100">
+                <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+                  Total Crédit (Entrées)
                 </span>
-                <span className="text-xs font-bold text-red-500">MRU</span>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className="text-3xl font-black text-emerald-700">
+                    {stats.credit.toLocaleString()}
+                  </span>
+                  <span className="text-xs font-bold text-emerald-600">
+                    MRU
+                  </span>
+                </div>
+              </div>
+              <div className="bg-red-50 p-6 rounded-[2rem] border border-red-100">
+                <span className="text-[10px] font-black text-red-600 uppercase tracking-widest">
+                  Total Débit (Sorties)
+                </span>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className="text-3xl font-black text-red-700">
+                    {stats.debit.toLocaleString()}
+                  </span>
+                  <span className="text-xs font-bold text-red-600">MRU</span>
+                </div>
+              </div>
+              <div className="bg-slate-900 p-6 rounded-[2rem] text-white shadow-xl">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Flux Net (Période)
+                </span>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span
+                    className={`text-3xl font-black ${
+                      stats.credit - stats.debit >= 0
+                        ? "text-green-400"
+                        : "text-red-400"
+                    }`}
+                  >
+                    {(stats.credit - stats.debit).toLocaleString()}
+                  </span>
+                  <span className="text-xs font-bold text-slate-400">MRU</span>
+                </div>
               </div>
             </div>
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Total Entrées
-              </span>
-              <div className="flex items-baseline gap-2 mt-2">
-                <span className="text-3xl font-black text-emerald-500">
-                  {stats.credit.toLocaleString()}
-                </span>
-                <span className="text-xs font-bold text-emerald-500">MRU</span>
+
+            {/* Tableau des mouvements */}
+            <div className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden">
+              <div className="p-6 border-b border-slate-50 bg-slate-50/50">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Détails des mouvements financiers
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="text-[10px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-50">
+                      <th className="px-8 py-4">Date</th>
+                      <th className="px-8 py-4">Désignation / Opération</th>
+                      <th className="px-8 py-4 text-right text-emerald-600 bg-emerald-50/30">
+                        Crédit (+)
+                      </th>
+                      <th className="px-8 py-4 text-right text-red-600 bg-red-50/30">
+                        Débit (-)
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {historiqueCaisse
+                      .filter((item) => {
+                        const itemDate = item.date
+                          ? new Date(item.date).toISOString().split("T")[0]
+                          : "";
+                        return (
+                          (dateDebut ? itemDate >= dateDebut : true) &&
+                          (dateFin ? itemDate <= dateFin : true)
+                        );
+                      })
+                      .map((item, idx) => {
+                        const isOut =
+                          item.typeOperation === "Debit" ||
+                          item.typeOperation === "Retrait";
+                        return (
+                          <tr
+                            key={idx}
+                            className="hover:bg-slate-50/50 transition-colors"
+                          >
+                            <td className="px-8 py-4">
+                              <div className="text-[11px] font-bold text-slate-900">
+                                {new Date(item.date).toLocaleDateString()}
+                              </div>
+                              <div className="text-[9px] text-slate-400 font-medium">
+                                {new Date(item.date).toLocaleTimeString()}
+                              </div>
+                            </td>
+                            <td className="px-8 py-4">
+                              <div className="text-[11px] font-bold text-slate-700">
+                                {item.description || "Opération de caisse"}
+                              </div>
+                              <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
+                                {item.typeOperation}
+                              </div>
+                            </td>
+                            <td className="px-8 py-4 text-right text-[12px] font-black text-emerald-600">
+                              {!isOut
+                                ? `${item.montant?.toLocaleString()} MRU`
+                                : "-"}
+                            </td>
+                            <td className="px-8 py-4 text-right text-[12px] font-black text-red-600">
+                              {isOut
+                                ? `${item.montant?.toLocaleString()} MRU`
+                                : "-"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-900 text-white font-black text-[11px] uppercase tracking-widest">
+                      <td colSpan="2" className="px-8 py-6 text-right">
+                        Totaux de la période :
+                      </td>
+                      <td className="px-8 py-6 text-right text-emerald-400">
+                        {stats.credit.toLocaleString()} MRU
+                      </td>
+                      <td className="px-8 py-6 text-right text-red-400">
+                        {stats.debit.toLocaleString()} MRU
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             </div>
           </div>
@@ -411,9 +562,10 @@ const Caisse = () => {
                   <th className="px-6 py-4">
                     {activeTab === "historique"
                       ? "Description"
-                      : activeTab === "versements_client"
+                      : activeTab === "versements_client" ||
+                        activeTab === "retraits_client"
                       ? "Client"
-                      : "Agent"}
+                      : "Agent / Motif"}
                   </th>
                   <th className="px-6 py-4">Montant</th>
                   <th className="px-6 py-4">Auteur / Cat.</th>
@@ -425,11 +577,12 @@ const Caisse = () => {
                   const isDebit =
                     item.typeOperation === "Debit" ||
                     item.typeOperation === "Retrait" ||
-                    activeTab === "agents";
+                    activeTab === "agents" ||
+                    activeTab === "retraits_client";
                   return (
                     <tr
                       key={idx}
-                      className="hover:bg-slate-50/50 transition-colors"
+                      className="hover:bg-slate-50/50 transition-colors group"
                     >
                       <td className="px-6 py-4">
                         <div className="text-[11px] font-bold text-slate-900">
@@ -440,7 +593,8 @@ const Caisse = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-[11px] font-bold text-slate-600">
-                        {activeTab === "versements_client"
+                        {activeTab === "versements_client" ||
+                        activeTab === "retraits_client"
                           ? item.idClient?.nom || "Client"
                           : item.description || item.idUser?.nom || "N/A"}
                       </td>
@@ -456,9 +610,17 @@ const Caisse = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex gap-2">
-                          {activeTab === "versements_client" && (
+                          {(activeTab === "versements_client" ||
+                            activeTab === "retraits_client") && (
                             <button
-                              onClick={() => handlePrint(item)}
+                              onClick={() =>
+                                handlePrint(
+                                  item,
+                                  activeTab === "retraits_client"
+                                    ? "retrait"
+                                    : "versement"
+                                )
+                              }
                               className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg"
                             >
                               <Printer size={14} />
@@ -491,7 +653,9 @@ const Caisse = () => {
         )}
       </div>
 
-      {/* MODALS */}
+      {/* --- TOUTES LES MODALS --- */}
+
+      {/* Versement Client */}
       <Modal
         isOpen={isDepositOpen}
         onClose={() => setIsDepositOpen(false)}
@@ -503,6 +667,19 @@ const Caisse = () => {
         />
       </Modal>
 
+      {/* Retrait Client (NOUVEAU) */}
+      <Modal
+        isOpen={isRetraitOpen}
+        onClose={() => setIsRetraitOpen(false)}
+        title="Effectuer un Retrait Client"
+      >
+        <RetraitClientForm
+          onClose={() => setIsRetraitOpen(false)}
+          onSuccess={fetchData}
+        />
+      </Modal>
+
+      {/* Recharge Caisse */}
       <Modal
         isOpen={isRechargeOpen}
         onClose={() => setIsRechargeOpen(false)}
@@ -514,6 +691,7 @@ const Caisse = () => {
         />
       </Modal>
 
+      {/* Edit Versement Client */}
       <Modal
         isOpen={isEditClientOpen}
         onClose={() => setIsEditClientOpen(false)}
@@ -526,6 +704,20 @@ const Caisse = () => {
         />
       </Modal>
 
+      {/* Edit Retrait Client (NOUVEAU) */}
+      <Modal
+        isOpen={isEditRetraitOpen}
+        onClose={() => setIsEditRetraitOpen(false)}
+        title="Modifier Retrait Client"
+      >
+        <EditRetraitClientForm
+          retrait={selectedTransaction}
+          onClose={() => setIsEditRetraitOpen(false)}
+          onSuccess={fetchData}
+        />
+      </Modal>
+
+      {/* Edit Standard (Recharge / Agents) */}
       <Modal
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
@@ -549,7 +741,7 @@ const Caisse = () => {
             className="w-full px-4 py-3 bg-slate-50 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500 h-24 resize-none"
             required
           />
-          <div className="flex gap-3">
+          <div className="flex gap-3 pt-4">
             <button
               type="button"
               onClick={() => setIsEditOpen(false)}
@@ -567,6 +759,7 @@ const Caisse = () => {
         </form>
       </Modal>
 
+      {/* Delete Confirmation */}
       <Modal
         isOpen={isDeleteOpen}
         onClose={() => setIsDeleteOpen(false)}

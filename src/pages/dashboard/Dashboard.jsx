@@ -17,26 +17,17 @@ import {
 import toast from "react-hot-toast";
 import API from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
-<<<<<<< HEAD
 import { useAuth } from "../../context/AuthContext";
 
 const Dashboard = () => {
   // --- AUTHENTIFICATION ---
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-=======
-
-const Dashboard = () => {
-  // --- AUTHENTIFICATION ---
-  const userData = JSON.parse(localStorage.getItem("_appTransit_user") || "{}");
-  const isAdmin = userData.role === "admin";
->>>>>>> d5a636149ce362b60c3e03f7413754cfbc65ac07
 
   // --- ÉTATS ---
   const [statsData, setStatsData] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-<<<<<<< HEAD
   const [showAmounts, setShowAmounts] = useState(false); // État pour masquer/afficher les montants
 
   // --- FONCTION DE MASQUAGE ---
@@ -50,16 +41,6 @@ const Dashboard = () => {
 
     // Formatage propre
     return typeof value === "number" ? value.toLocaleString("fr-FR") : value;
-=======
-  const [showAmounts, setShowAmounts] = useState(true); // État pour masquer/afficher les montants
-
-  // --- FONCTION DE MASQUAGE ---
-  // Applique les points de suture si showAmounts est faux, sinon formate le nombre
-  const mask = (value) => {
-    if (!showAmounts) return "••••••";
-    if (value === undefined || value === null) return "0";
-    return typeof value === "number" ? value.toLocaleString() : value;
->>>>>>> d5a636149ce362b60c3e03f7413754cfbc65ac07
   };
 
   // --- CHARGEMENT DES DONNÉES ---
@@ -118,7 +99,7 @@ const Dashboard = () => {
         isAdminOnly: true,
       },
       {
-        label: "BÉNÉFICE RÉEL",
+        label: "BÉNÉFICE BRUT ",
         value: statsData?.beneficeMois || 0,
         sub: `Total liquidation: ${mask(statsData?.totalLiquidation)} MRU`,
         icon: Wallet,

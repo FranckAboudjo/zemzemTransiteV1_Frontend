@@ -24,6 +24,7 @@ import {
   Bell,
   AlertTriangle,
   Building2,
+  Wallet,
 } from "lucide-react";
 
 const DashboardLayout = ({ children, activeMenu }) => {
@@ -122,6 +123,12 @@ const DashboardLayout = ({ children, activeMenu }) => {
       label: "Gestion de la Caisse",
       icon: Briefcase,
       roles: ["admin", "superviseur"],
+    },
+    {
+      id: "depenses", // <--- Nouvel ID pour la route /depenses
+      label: "Dépenses",
+      icon: Wallet,
+      roles: ["admin", "superviseur"], // Ajuste les rôles selon tes besoins
     },
     {
       id: "liquidations",
