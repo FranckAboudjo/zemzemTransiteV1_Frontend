@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Plus,
   Wallet,
@@ -6,14 +6,15 @@ import {
   TrendingUp,
   Calendar,
   Trash2,
+  Edit3,
+  ChevronDown,
+  ChevronRight,
   Loader2,
   X,
 } from "lucide-react";
-// Importations demandées
 import API from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
 
-// --- COMPOSANT : CARTE STATISTIQUE ---
 const StatCard = ({ label, value, subValue, icon: Icon, colorClass }) => (
   <div className="bg-white p-6 rounded-[30px] border border-slate-100 shadow-sm flex flex-col gap-3">
     <div className="flex justify-between items-center">
@@ -36,24 +37,20 @@ const StatCard = ({ label, value, subValue, icon: Icon, colorClass }) => (
 );
 
 const Depenses = () => {
-  // --- ÉTATS ---
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState({
-    depenses: [],
-    categories: [],
-  });
-
+  const [data, setData] = useState({ depenses: [], categories: [] });
   const [stats, setStats] = useState({
     mensuel: { depenses: 0, beneficeBrut: 0, beneficeReel: 0 },
-    annuel: { depenses: 0, beneficeBrut: 0, beneficeReel: 0 },
   });
-
   const [filter, setFilter] = useState({
     mois: new Date().getMonth(),
     annee: new Date().getFullYear(),
   });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [expandedCats, setExpandedCats] = useState({}); // Pour gérer les lignes dépliantes
+
   const [form, setForm] = useState({
     description: "",
     montant: "",
@@ -61,11 +58,10 @@ const Depenses = () => {
     date: new Date().toISOString().split("T")[0],
   });
 
-  // --- CHARGEMENT DES DONNÉES ---
+  // --- CHARGEMENT ---
   const loadPageData = useCallback(async () => {
     setLoading(true);
     try {
-      // Utilisation de API_PATHS et de l'instance API
       const [resList, resCat, resStats] = await Promise.all([
         API.get(API_PATHS.DEPENSES.GET_ALL_DEPENSES),
         API.get(API_PATHS.CATDEPENSE.GET_ALL_CATDEPENSE),
@@ -74,20 +70,13 @@ const Depenses = () => {
         }),
       ]);
 
-      // Adaptation aux structures de données de votre controller
       setData({
-        depenses: resList.data?.data || [], // Votre responseHandler enveloppe souvent dans .data
+        depenses: resList.data?.data || [],
         categories: resCat.data?.data || [],
       });
-
-      if (resStats.data?.data) {
-        setStats(resStats.data.data);
-      }
+      if (resStats.data?.data) setStats(resStats.data.data);
     } catch (err) {
-      console.error(
-        "Erreur de chargement:",
-        err.response?.data?.message || err.message
-      );
+      console.error("Erreur:", err);
     } finally {
       setLoading(false);
     }
@@ -97,16 +86,55 @@ const Depenses = () => {
     loadPageData();
   }, [loadPageData]);
 
+  // --- LOGIQUE DE GROUPEMENT (Inspirée de l'image) ---
+  const groupedDepenses = useMemo(() => {
+    // 1. Filtrer par mois/année sélectionnés
+    const filtered = data.depenses.filter((d) => {
+      const dDate = new Date(d.date);
+      return (
+        dDate.getMonth() === filter.mois && dDate.getFullYear() === filter.annee
+      );
+    });
+
+    // 2. Grouper par catégorie
+    return filtered.reduce((acc, dep) => {
+      const catName = dep.id_categorieDepense?.nom || "Non classé";
+      if (!acc[catName]) acc[catName] = { list: [], total: 0 };
+      acc[catName].list.push(dep);
+      acc[catName].total += dep.montant;
+      return acc;
+    }, {});
+  }, [data.depenses, filter]);
+
+  const toggleCat = (catName) => {
+    setExpandedCats((prev) => ({ ...prev, [catName]: !prev[catName] }));
+  };
+
   // --- ACTIONS ---
+  const handleEdit = (dep) => {
+    setEditingId(dep._id);
+    setForm({
+      description: dep.description,
+      montant: dep.montant,
+      id_categorieDepense: dep.id_categorieDepense?._id || "",
+      date: new Date(dep.date).toISOString().split("T")[0],
+    });
+    setIsModalOpen(true);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Conversion du montant en nombre pour le controller
-      const payload = { ...form, montant: Number(form.montant) };
-
-      await API.post(API_PATHS.DEPENSES.CREATE_DEPENSE, payload);
-
+      if (editingId) {
+        await API.put(
+          API_PATHS.DEPENSES.UPDATE_DEPENSE.replace(":id", editingId),
+          form
+        );
+      } else {
+        await API.post(API_PATHS.DEPENSES.CREATE_DEPENSE, form);
+      }
       setIsModalOpen(false);
+      setEditingId(null);
       setForm({
         description: "",
         montant: "",
@@ -115,19 +143,17 @@ const Depenses = () => {
       });
       loadPageData();
     } catch (err) {
-      alert("Erreur: " + (err.response?.data?.message || err.message));
+      alert(err.response?.data?.message || "Erreur");
     }
   };
 
   const deleteItem = async (id) => {
-    if (window.confirm("Supprimer cette dépense ? Cela créditera la caisse.")) {
+    if (window.confirm("Supprimer cette dépense ?")) {
       try {
-        // Remplacement dynamique de l'ID dans le path si nécessaire
-        const deletePath = API_PATHS.DEPENSES.DELETE_DEPENSE.replace(":id", id);
-        await API.delete(deletePath);
+        await API.delete(API_PATHS.DEPENSES.DELETE_DEPENSE.replace(":id", id));
         loadPageData();
       } catch (err) {
-        alert("Erreur: " + (err.response?.data?.message || err.message));
+        alert("Erreur");
       }
     }
   };
@@ -149,17 +175,16 @@ const Depenses = () => {
 
   return (
     <div className="p-6 space-y-8 bg-[#F8FAFC] min-h-screen">
-      {/* ENTÊTE */}
+      {/* HEADER IDEM */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">
             Journal de Caisse
           </h1>
           <p className="text-slate-400 text-xs font-bold uppercase">
-            Suivi des décaissements & rentabilité
+            Analyse des flux financiers
           </p>
         </div>
-
         <div className="flex items-center gap-3">
           <div className="bg-white p-2 rounded-2xl border flex items-center gap-2 shadow-sm text-xs font-black">
             <Calendar size={14} className="text-slate-400 ml-2" />
@@ -182,23 +207,26 @@ const Depenses = () => {
               onChange={(e) =>
                 setFilter({ ...filter, annee: parseInt(e.target.value) })
               }
-              className="w-16 border-l pl-2 outline-none"
+              className="w-20 border-l pl-2 outline-none"
             />
           </div>
           <button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-red-500 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-100 flex items-center gap-2"
+            onClick={() => {
+              setEditingId(null);
+              setIsModalOpen(true);
+            }}
+            className="bg-red-500 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center gap-2"
           >
             <Plus size={16} /> Nouveau décaissement
           </button>
         </div>
       </div>
 
-      {/* STATS : Connectées au controller */}
+      {/* STATS IDEM */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard
-          label="Bénéfice Brut BL"
-          subValue={`${moisNoms[filter.mois]}`}
+          label="Bénéfice Brut"
+          subValue={moisNoms[filter.mois]}
           value={`${(stats.mensuel.beneficeBrut || 0).toLocaleString()} MRU`}
           icon={TrendingUp}
           colorClass={{ bg: "bg-blue-50", text: "text-blue-600" }}
@@ -219,76 +247,91 @@ const Depenses = () => {
         />
       </div>
 
-      {/* TABLEAU */}
+      {/* TABLEAU GROUPÉ (STYLE IMAGE) */}
       <div className="bg-white rounded-[35px] border border-slate-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-slate-50 flex justify-between items-center">
-          <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-            Historique des transactions
-          </h2>
-          {loading && (
-            <Loader2 size={18} className="animate-spin text-red-500" />
-          )}
-        </div>
-
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/50">
+              <tr className="bg-slate-50 border-b">
                 <th className="p-5 text-[10px] font-black uppercase text-slate-400">
-                  Date
+                  Dépenses / Catégories
                 </th>
-                <th className="p-5 text-[10px] font-black uppercase text-slate-400">
-                  Description
-                </th>
-                <th className="p-5 text-[10px] font-black uppercase text-slate-400">
-                  Catégorie
-                </th>
-                <th className="p-5 text-[10px] font-black uppercase text-slate-400">
-                  Montant
+                <th className="p-5 text-right text-[10px] font-black uppercase text-slate-400">
+                  Montant (MRU)
                 </th>
                 <th className="p-5 text-right text-[10px] font-black uppercase text-slate-400">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
-              {data.depenses.length > 0 ? (
-                data.depenses.map((dep) => (
-                  <tr
-                    key={dep._id}
-                    className="hover:bg-slate-50/50 transition-colors group"
-                  >
-                    <td className="p-5 text-xs font-bold text-slate-500">
-                      {new Date(dep.date).toLocaleDateString()}
-                    </td>
-                    <td className="p-5 text-xs font-black text-slate-900">
-                      {dep.description}
-                    </td>
-                    <td className="p-5">
-                      <span className="px-3 py-1 bg-slate-100 rounded-full text-[9px] font-black uppercase text-slate-500">
-                        {dep.id_categorieDepense?.nom || "Non classé"}
-                      </span>
-                    </td>
-                    <td className="p-5 text-sm font-black text-red-500">
-                      -{dep.montant?.toLocaleString()} MRU
-                    </td>
-                    <td className="p-5 text-right">
-                      <button
-                        onClick={() => deleteItem(dep._id)}
-                        className="p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
+            <tbody>
+              {Object.keys(groupedDepenses).length > 0 ? (
+                Object.entries(groupedDepenses).map(([catName, data]) => (
+                  <React.Fragment key={catName}>
+                    {/* LIGNE CATÉGORIE (PARENT) */}
+                    <tr
+                      className="border-b bg-slate-50/30 cursor-pointer hover:bg-slate-50 transition-colors"
+                      onClick={() => toggleCat(catName)}
+                    >
+                      <td className="p-4 flex items-center gap-3 text-xs font-black text-slate-700">
+                        {expandedCats[catName] ? (
+                          <ChevronDown size={14} />
+                        ) : (
+                          <ChevronRight size={14} />
+                        )}
+                        <span className="text-blue-600 font-bold">
+                          {catName}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right text-xs font-black text-slate-900">
+                        {data.total.toLocaleString()}
+                      </td>
+                      <td className="p-4"></td>
+                    </tr>
+
+                    {/* LIGNES DÉPENSES (ENFANTS) */}
+                    {expandedCats[catName] &&
+                      data.list.map((dep) => (
+                        <tr
+                          key={dep._id}
+                          className="border-b hover:bg-red-50/30 transition-colors group"
+                        >
+                          <td className="p-4 pl-12">
+                            <div className="text-[11px] font-bold text-slate-600">
+                              {dep.description}
+                            </div>
+                            <div className="text-[9px] text-slate-400 uppercase font-bold">
+                              {new Date(dep.date).toLocaleDateString()}
+                            </div>
+                          </td>
+                          <td className="p-4 text-right text-xs font-black text-red-500">
+                            - {dep.montant.toLocaleString()}
+                          </td>
+                          <td className="p-4 text-right space-x-2">
+                            <button
+                              onClick={() => handleEdit(dep)}
+                              className="p-2 text-slate-300 hover:text-blue-500 transition-colors"
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                            <button
+                              onClick={() => deleteItem(dep._id)}
+                              className="p-2 text-slate-300 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </React.Fragment>
                 ))
               ) : (
                 <tr>
                   <td
-                    colSpan="5"
+                    colSpan="3"
                     className="p-20 text-center text-slate-400 text-xs font-bold uppercase tracking-widest"
                   >
-                    Aucune dépense enregistrée pour cette période
+                    Aucune donnée pour {moisNoms[filter.mois]} {filter.annee}
                   </td>
                 </tr>
               )}
@@ -297,13 +340,15 @@ const Depenses = () => {
         </div>
       </div>
 
-      {/* MODALE */}
+      {/* MODALE (ADAPTÉE POUR AJOUT/MODIF) */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden">
             <div className="p-6 border-b flex justify-between items-center bg-slate-50">
               <h3 className="font-black uppercase text-xs tracking-widest">
-                Nouveau décaissement
+                {editingId
+                  ? "Modifier le décaissement"
+                  : "Nouveau décaissement"}
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -341,7 +386,6 @@ const Depenses = () => {
                   type="text"
                   required
                   className="w-full p-4 bg-slate-50 rounded-2xl text-xs font-bold outline-none border-2 border-transparent focus:border-red-500"
-                  placeholder="Ex: Facture SOMELEC"
                   value={form.description}
                   onChange={(e) =>
                     setForm({ ...form, description: e.target.value })
@@ -356,7 +400,6 @@ const Depenses = () => {
                   type="number"
                   required
                   className="w-full p-5 bg-slate-50 rounded-2xl text-2xl font-black text-red-500 outline-none border-2 border-transparent focus:border-red-500"
-                  placeholder="0"
                   value={form.montant}
                   onChange={(e) =>
                     setForm({ ...form, montant: e.target.value })
@@ -367,7 +410,7 @@ const Depenses = () => {
                 type="submit"
                 className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-red-500 transition-all"
               >
-                Valider la sortie de caisse
+                {editingId ? "Mettre à jour" : "Valider la sortie"}
               </button>
             </form>
           </div>
