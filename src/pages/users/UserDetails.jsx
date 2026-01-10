@@ -258,7 +258,9 @@ const UserDetails = () => {
                 <tbody className="divide-y divide-slate-50">
                   {transactions.map((t) => {
                     const isPos =
-                      t.type === "Rechargement" || t.type === "Remboursement";
+                      t.type === "Rechargement" ||
+                      t.type === "Remboursement" ||
+                      t.type === "Retour";
                     return (
                       <tr
                         key={t._id}
