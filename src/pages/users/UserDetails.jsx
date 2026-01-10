@@ -53,7 +53,10 @@ const UserDetails = () => {
     const entries = Object.entries(stats).map(([type, data]) => ({
       type,
       ...data,
-      isPositive: type === "Rechargement" || type === "Annulation paiement",
+      isPositive:
+        type === "Rechargement" ||
+        type === "Annulation paiement" ||
+        type === "Retour",
     }));
 
     const totalEntrees = entries

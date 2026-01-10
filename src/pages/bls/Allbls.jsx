@@ -26,11 +26,10 @@ const AllBLs = () => {
   const [bls, setBls] = useState([]);
   const [clients, setClients] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false); // Pour le bouton refresh manuel
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("tous");
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  // La pagination a été retirée pour un affichage en liste continue
 
   // --- AUTH / RÔLES ---
   const userDataRaw = localStorage.getItem("_appTransit_user");
@@ -70,7 +69,6 @@ const AllBLs = () => {
   useEffect(() => {
     fetchData();
 
-    // Gestion de la fermeture des menus au clic ailleurs
     const handleClickOutside = () => setActiveMenu(null);
     window.addEventListener("click", handleClickOutside);
     return () => window.removeEventListener("click", handleClickOutside);
@@ -84,7 +82,7 @@ const AllBLs = () => {
       toast.success("Dossier supprimé avec succès");
       setIsDeleteOpen(false);
       setSelectedBL(null);
-      fetchData(true); // Rafraîchissement silencieux après action
+      fetchData(true);
     } catch (err) {
       toast.error(err.message || "Erreur lors de la suppression");
     }
@@ -102,7 +100,6 @@ const AllBLs = () => {
     return bls.filter((bl) => {
       const status = bl.etatBl?.trim();
 
-      // Sécurité visuelle par rôle
       if (status === "A validé" && !isAdmin && !isSuperviseur) return false;
       if (status === "Facturé" && !isAdmin) return false;
 
@@ -117,13 +114,6 @@ const AllBLs = () => {
       return matchesSearch && matchesStatus;
     });
   }, [bls, searchTerm, statusFilter, isAdmin, isSuperviseur]);
-
-  // Pagination
-  const currentItems = filteredBLs.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-  const totalPages = Math.ceil(filteredBLs.length / itemsPerPage);
 
   // --- SOUS-COMPOSANTS ---
   const ChargeProgress = ({ paye, total }) => {
@@ -189,7 +179,6 @@ const AllBLs = () => {
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto">
-          {/* Bouton Refresh Manuel (Remplace l'automatisme Socket) */}
           <button
             onClick={() => fetchData(true)}
             className={`p-3 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition-all ${
@@ -209,7 +198,6 @@ const AllBLs = () => {
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
-                setCurrentPage(1);
               }}
             />
           </div>
@@ -232,7 +220,6 @@ const AllBLs = () => {
             key={f}
             onClick={() => {
               setStatusFilter(f);
-              setCurrentPage(1);
             }}
             className={`pb-4 capitalize whitespace-nowrap transition-all border-b-2 ${
               statusFilter === f
@@ -245,12 +232,12 @@ const AllBLs = () => {
         ))}
       </div>
 
-      {/* TABLEAU */}
+      {/* TABLEAU AVEC HAUTEUR FIXE ET OVERFLOW */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/50 text-[11px] font-black uppercase text-slate-400 tracking-widest">
+        <div className="overflow-x-auto max-h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+          <table className="w-full text-left border-collapse relative">
+            <thead className="sticky top-0 z-20 bg-slate-50 shadow-sm">
+              <tr className="text-[11px] font-black uppercase text-slate-400 tracking-widest">
                 <th className="px-6 py-4">Code / Date</th>
                 <th className="px-6 py-4">Numero BL</th>
                 <th className="px-6 py-4">Client</th>
@@ -262,8 +249,8 @@ const AllBLs = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {currentItems.length > 0 ? (
-                currentItems.map((bl) => (
+              {filteredBLs.length > 0 ? (
+                filteredBLs.map((bl) => (
                   <tr
                     key={bl._id}
                     onClick={() => navigate(`/bls/${bl._id}`)}
@@ -379,55 +366,15 @@ const AllBLs = () => {
           </table>
         </div>
 
-        {/* PAGINATION */}
-        <div className="px-6 py-5 border-t border-slate-50 flex justify-between items-center bg-white">
-          <p className="text-xs font-bold text-slate-400 uppercase">
-            Affichage {currentItems.length} sur {filteredBLs.length}
+        {/* FOOTER STATISTIQUE (Remplace le bandeau de pagination) */}
+        <div className="px-6 py-4 border-t border-slate-50 bg-slate-50/30">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+            Total : {filteredBLs.length} Dossier(s) affiché(s)
           </p>
-          <div className="flex items-center gap-2">
-            <button
-              disabled={currentPage === 1}
-              onClick={(e) => {
-                e.stopPropagation();
-                setCurrentPage((p) => p - 1);
-              }}
-              className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:text-red-500 disabled:opacity-20 transition-all"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <div className="flex gap-1">
-              {[...Array(totalPages)].map((_, i) => (
-                <button
-                  key={i}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setCurrentPage(i + 1);
-                  }}
-                  className={`size-8 rounded-lg text-xs font-bold transition-all ${
-                    currentPage === i + 1
-                      ? "bg-red-500 text-white shadow-md shadow-red-500/20"
-                      : "text-slate-500 hover:bg-slate-100"
-                  }`}
-                >
-                  {i + 1}
-                </button>
-              ))}
-            </div>
-            <button
-              disabled={currentPage === totalPages || totalPages === 0}
-              onClick={(e) => {
-                e.stopPropagation();
-                setCurrentPage((p) => p + 1);
-              }}
-              className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:text-red-500 disabled:opacity-20 transition-all"
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
         </div>
       </div>
 
-      {/* MODALS */}
+      {/* MODALS SÉCURISÉS */}
       <Modal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
