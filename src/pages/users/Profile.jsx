@@ -428,10 +428,7 @@ const MobileCard = ({ t }) => {
 };
 
 const DesktopRow = ({ t }) => {
-  const isPositive =
-    t.type === "Rechargement" ||
-    t.type === "Remboursement" ||
-    t.type === "Retour";
+  const isPositive = t.type === "Rechargement" || t.type === "Remboursement";
   return (
     <tr className="hover:bg-slate-50/50 transition-colors group">
       <td className="px-8 py-6">
