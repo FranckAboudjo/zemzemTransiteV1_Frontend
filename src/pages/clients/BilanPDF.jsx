@@ -190,8 +190,8 @@ const BilanPDF = ({ data, client, period, bilanSummary }) => (
 
       <View style={styles.footer}>
         <Text>
-          ZEMZEM GROUP - Tevragh Zeina Ilot 1, Nouakchott - Tel: +222 20 70 11
-          64
+          ZEMZEM GROUP - Tevragh Zeina Ilot 1, Nouakchott - Tel: +222 22 32 32
+          53
         </Text>
       </View>
     </Page>

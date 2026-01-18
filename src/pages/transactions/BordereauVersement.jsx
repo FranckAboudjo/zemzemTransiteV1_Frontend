@@ -257,7 +257,7 @@ const BordereauVersement = ({ data }) => {
             ZEMZEM GROUP - TRANSIT & LOGISTIQUE
           </Text>
           <Text style={styles.footerText}>
-            Tevragh Zeina Ilot 1, Nouakchott, Mauritanie | +222 20 70 11 64
+            Tevragh Zeina Ilot 1, Nouakchott, Mauritanie | +222 22 32 32 53
           </Text>
           <Text style={[styles.footerText, { marginTop: 5, fontSize: 6 }]}>
             ID Transaction : {data._id}

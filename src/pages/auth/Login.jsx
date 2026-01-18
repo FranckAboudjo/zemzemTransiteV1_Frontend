@@ -1,6 +1,14 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Loader2, User, Lock, ChevronRight } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Loader2,
+  User,
+  Lock,
+  ChevronRight,
+  ShieldCheck,
+} from "lucide-react";
 import { API_PATHS } from "../../utils/apiPaths";
 import { useAuth } from "../../context/AuthContext";
 import { validateUsername, validatePassword } from "../../utils/helper";
@@ -45,121 +53,141 @@ const Login = () => {
     );
   };
 
-  // --- LOGIQUE DE CONNEXION AVEC VÉRIFICATION DE RESTRICTION ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isFormValid()) return;
-
     setIsLoading(true);
     setError("");
 
     try {
       const loginRes = await API.post(API_PATHS.AUTH.LOGIN, formData);
-
       if (loginRes.data.success) {
-        const userData = loginRes.data.data; // 1. Vérification immédiate de la restriction
-
+        const userData = loginRes.data.data;
         if (userData.restriction === true) {
-          setSuccess("Vérification du compte...");
-          setTimeout(() => {
-            navigate("/restrictions"); // Redirection vers votre page de blocage
-          }, 800);
-          return; // On stoppe l'exécution ici
-        } // 2. Si pas de restriction, on continue normalement
-
+          setSuccess("Vérification sécurisée...");
+          setTimeout(() => navigate("/restrictions"), 800);
+          return;
+        }
         login(userData);
-        setSuccess("Authentification réussie...");
-
+        setSuccess("Connexion établie...");
         setTimeout(() => {
-          if (userData.role === "agent" || userData.role === "superviseur") {
-            navigate("/profile");
-          } else {
-            navigate("/dashboard");
-          }
+          userData.role === "agent" || userData.role === "superviseur"
+            ? navigate("/profile")
+            : navigate("/dashboard");
         }, 1000);
       }
     } catch (err) {
-      setError(err.message || "Identifiants incorrects ou erreur serveur");
+      setError(err.message || "Identifiants incorrects ou accès refusé");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen font-display bg-[#FAF8FA] antialiased">
-      {/* SECTION GAUCHE VISUELLE */}
-      <div className="hidden lg:flex flex-1 bg-[#202042] relative items-center justify-center overflow-hidden p-12">
-        <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-[#EF233C] rounded-full opacity-10 blur-3xl"></div>
-        <div className="relative z-10 max-w-lg text-white text-center lg:text-left">
-          <div className="flex items-center gap-2 mb-12 justify-center lg:justify-start">
-            <div className="w-10 h-10 bg-[#EF233C] rounded-lg flex items-center justify-center font-bold text-xl">
-              A
-            </div>
-            <h1 className="text-lg font-display text-white font-extrabold text-xl tracking-tighter">
-              AppLogix <span className="text-xs text-gray-400">v1.0.1</span>
-            </h1>
-          </div>
-          <h2 className="text-5xl font-bold text-white font-montserrat leading-tight mb-6">
-            Toutes vos opérations au{" "}
-            <span className="text-[#EF233C]">même endroit.</span>
-          </h2>
-          <p className="text-gray-300 text-lg font-light">
-            Gérez vos BLs, vos clients et vos flux financiers avec performance.
-          </p>
-          <div className="pt-8 flex justify-center">
-            <div className="relative w-72 h-72">
-              <div className="absolute inset-0 bg-[#EF233C] rounded-full opacity-20 animate-pulse"></div>
+    <div className="flex min-h-screen font-body bg-[#F4F7F9] antialiased">
+      {/* SECTION GAUCHE : IDENTITÉ VISUELLE */}
+      <div className="hidden lg:flex flex-1 bg-[#00355E] relative items-center justify-center overflow-hidden p-16">
+        {/* Cercles décoratifs soft */}
+        <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-[#8CC63F] rounded-full opacity-[0.03] blur-3xl"></div>
+        <div className="absolute bottom-[-10%] right-[-5%] w-[400px] h-[400px] bg-blue-400 rounded-full opacity-[0.05] blur-3xl"></div>
+
+        <div className="relative z-10 max-w-lg text-center lg:text-left">
+          <div className="flex items-center gap-4 mb-16 justify-center lg:justify-start">
+            <div className="bg-white p-2 rounded-xl shadow-2xl shadow-black/20">
               <img
-                src="/assets/cargo.png"
-                alt="Cargo"
-                className="relative z-10 w-full h-full object-contain filter drop-shadow-2xl"
+                src="/assets/logo.png"
+                alt="Zemzem Logo"
+                className="h-10 w-auto object-contain"
               />
             </div>
+            <div className="h-10 w-px bg-white/20 mx-1"></div>
+            <h1 className="text-2xl font-black text-white tracking-tighter uppercase">
+              Zemzem<span className="text-[#8CC63F]">App</span>
+            </h1>
           </div>
+
+          <h2 className="text-6xl font-black text-white leading-[1.1] mb-8 tracking-tighter">
+            Maîtrisez votre <br />
+            <span className="text-[#8CC63F]">Logistique.</span>
+          </h2>
+
+          <p className="text-blue-100/70 text-xl font-medium leading-relaxed mb-10">
+            La plateforme de gestion intégrée pour les professionnels du transit
+            et du transport.
+          </p>
+
+          <div className="relative inline-block group">
+            <div className="absolute inset-0 bg-[#8CC63F] rounded-3xl opacity-20 blur-2xl group-hover:opacity-40 transition-opacity"></div>
+            <img
+              src="/assets/cargo.png"
+              alt="Cargo Ship"
+              className="relative z-10 w-full max-w-sm object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] transform group-hover:scale-105 transition-transform duration-700"
+            />
+          </div>
+        </div>
+
+        {/* Badge de version */}
+        <div className="absolute bottom-10 left-16 flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10 backdrop-blur-md">
+          <div className="w-2 h-2 bg-[#8CC63F] rounded-full animate-pulse"></div>
+          <span className="text-[10px] font-black text-white/50 uppercase tracking-widest text-xs">
+            v1.0.1 • Système Sécurisé
+          </span>
         </div>
       </div>
 
-      {/* SECTION DROITE FORMULAIRE */}
-      <div className="flex-1 flex flex-col justify-center items-center p-8 lg:p-24 bg-white">
-        <div className="w-full max-w-[420px]">
-          <div className="mb-10 text-center lg:text-left">
-            <h3 className="text-3xl font-bold text-[#202042] font-montserrat mb-2">
-              Bon retour !
+      {/* SECTION DROITE : FORMULAIRE */}
+      <div className="flex-1 flex flex-col justify-center items-center p-6 lg:p-24 bg-white relative">
+        <div className="w-full max-w-[440px]">
+          <div className="mb-12 text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-slate-50 border border-slate-100 rounded-full mb-6">
+              <ShieldCheck size={14} className="text-[#00355E]" />
+              <span className="text-[10px] font-bold text-[#00355E] uppercase tracking-wider">
+                Portail d'accès privé
+              </span>
+            </div>
+            <h3 className="text-4xl font-black text-[#00355E] mb-3 tracking-tight">
+              Ravi de vous revoir !
             </h3>
-            <p className="text-gray-500">
-              Veuillez entrer vos accès pour continuer.
+            <p className="text-slate-400 font-medium">
+              Entrez vos identifiants pour accéder à votre espace.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Champ Username */}
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-[#202042] ml-1">
-                Nom d'utilisateur
+              <label className="text-xs font-black text-[#00355E] uppercase tracking-widest ml-1">
+                Utilisateur
               </label>
               <div className="relative group">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#EF233C] transition-colors size-5" />
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#8CC63F] transition-colors">
+                  <User size={20} />
+                </div>
                 <input
                   name="username"
                   type="text"
                   value={formData.username}
                   onChange={handleInputChange}
                   onBlur={handleBlur}
-                  placeholder="exemple_user"
-                  className={`w-full pl-12 pr-4 py-3.5 bg-gray-50 border-2 rounded-xl outline-none transition-all ${
+                  placeholder="Ex: john_doe"
+                  className={`w-full pl-12 pr-4 py-4 bg-slate-50 border-2 rounded-2xl outline-none transition-all font-semibold text-[#00355E] ${
                     fieldErrors.username && touched.username
-                      ? "border-red-400 bg-red-50"
-                      : "border-gray-100 focus:border-[#EF233C] focus:bg-white"
+                      ? "border-red-100 bg-red-50 text-red-600"
+                      : "border-slate-50 focus:border-[#8CC63F] focus:bg-white focus:shadow-xl focus:shadow-[#8CC63F]/5"
                   }`}
                 />
               </div>
             </div>
 
+            {/* Champ Password */}
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-[#202042] ml-1">
+              <label className="text-xs font-black text-[#00355E] uppercase tracking-widest ml-1">
                 Mot de passe
               </label>
               <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#EF233C] transition-colors size-5" />
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#8CC63F] transition-colors">
+                  <Lock size={20} />
+                </div>
                 <input
                   name="password"
                   type={showPassword ? "text" : "password"}
@@ -167,48 +195,60 @@ const Login = () => {
                   onChange={handleInputChange}
                   onBlur={handleBlur}
                   placeholder="••••••••"
-                  className={`w-full pl-12 pr-12 py-3.5 bg-gray-50 border-2 rounded-xl outline-none transition-all ${
+                  className={`w-full pl-12 pr-14 py-4 bg-slate-50 border-2 rounded-2xl outline-none transition-all font-semibold text-[#00355E] ${
                     fieldErrors.password && touched.password
-                      ? "border-red-400 bg-red-50"
-                      : "border-gray-100 focus:border-[#EF233C] focus:bg-white"
+                      ? "border-red-100 bg-red-50 text-red-600"
+                      : "border-slate-50 focus:border-[#8CC63F] focus:bg-white focus:shadow-xl focus:shadow-[#8CC63F]/5"
                   }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#202042]"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-[#00355E] transition-colors"
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
             </div>
 
+            {/* Notifications */}
             {error && (
-              <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm animate-shake">
+              <div className="p-4 bg-red-50 border border-red-100 text-red-600 text-xs font-bold rounded-2xl flex items-center gap-3 animate-shake">
+                <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
                 {error}
               </div>
             )}
             {success && (
-              <div className="p-4 bg-green-50 border-l-4 border-green-500 text-green-700 text-sm">
+              <div className="p-4 bg-emerald-50 border border-emerald-100 text-emerald-600 text-xs font-bold rounded-2xl flex items-center gap-3">
+                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></div>
                 {success}
               </div>
             )}
 
+            {/* Bouton Submit */}
             <button
               type="submit"
               disabled={isLoading || !isFormValid()}
-              className="w-full py-4 bg-[#EF233C] hover:bg-[#D91E36] disabled:bg-gray-300 text-white font-bold rounded-xl transition-all shadow-lg flex justify-center items-center gap-2 group"
+              className="w-full py-5 bg-[#00355E] hover:bg-[#002B4D] disabled:bg-slate-100 disabled:text-slate-300 text-white font-black rounded-2xl transition-all shadow-xl shadow-blue-900/20 flex justify-center items-center gap-3 group relative overflow-hidden"
             >
               {isLoading ? (
                 <Loader2 className="animate-spin" />
               ) : (
                 <>
-                  Se connecter{" "}
-                  <ChevronRight className="size-4 group-hover:translate-x-1 transition-transform" />
+                  <span className="relative z-10 uppercase tracking-widest text-sm">
+                    Se connecter
+                  </span>
+                  <ChevronRight className="relative z-10 size-5 group-hover:translate-x-1 transition-transform" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#8CC63F] to-emerald-500 opacity-0 group-hover:opacity-10 transition-opacity"></div>
                 </>
               )}
             </button>
           </form>
+
+          <p className="mt-12 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-loose">
+            En vous connectant, vous acceptez les conditions <br /> de sécurité
+            de Zemzem Group.
+          </p>
         </div>
       </div>
     </div>

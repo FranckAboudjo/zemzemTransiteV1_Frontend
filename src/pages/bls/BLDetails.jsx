@@ -17,10 +17,12 @@ import toast, { Toaster } from "react-hot-toast";
 import API from "../../utils/axiosInstance";
 import { API_PATHS } from "../../utils/apiPaths";
 import Modal from "../../components/ui/Modal";
+import Select from "react-select";
 
 const BLDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [users, setUsers] = useState([]); // Initialisation correcte
 
   // Récupération des données utilisateur
   const userData = JSON.parse(localStorage.getItem("_appTransit_user"));
@@ -45,7 +47,30 @@ const BLDetails = () => {
     description: "",
     type: "Espéce",
     numLiquidation: "",
+    id_nouveau_agent: "", // <--- Nouveau champ
   });
+
+  // Récupération des utilisateurs
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await API.get(API_PATHS.USERS.GET_ALL_USERS);
+        // Sécurité : on vérifie si res.data est le tableau, sinon on cherche dans res.data.data
+        const dataArray = Array.isArray(res.data) ? res.data : res.data.data;
+
+        if (Array.isArray(dataArray)) {
+          setUsers(dataArray);
+        } else {
+          console.error("Format de données reçu incorrect:", res.data);
+          setUsers([]); // On remet à vide pour éviter le crash
+        }
+      } catch (err) {
+        console.error("Erreur chargement utilisateurs", err);
+        setUsers([]);
+      }
+    };
+    fetchUsers();
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -137,6 +162,7 @@ const BLDetails = () => {
       type: charge.type || "Espéce",
       numLiquidation:
         charge.numLiquidation !== "non renseigné" ? charge.numLiquidation : "",
+      id_nouveau_agent: charge.id_user_payeur || "", // <--- Initialiser avec le payeur actuel
     });
   };
 
@@ -150,6 +176,7 @@ const BLDetails = () => {
         type: formData.type,
         numLiquidation: formData.numLiquidation,
         montant: formData.montant,
+        id_nouveau_agent: formData.id_nouveau_agent, // <--- Envoyer au backend
       };
       const url = API_PATHS.PAIEMENTCHARGE.CREATE_PAIEMENT_CHARGE.replace(
         ":id_bl",
@@ -459,7 +486,7 @@ const BLDetails = () => {
 
       {/* --- MODALS --- */}
 
-      {/* RÈGLEMENT */}
+      {/* RÈGLEMENT / MODIFICATION */}
       <Modal
         isOpen={!!selectedCharge}
         onClose={() => setSelectedCharge(null)}
@@ -474,8 +501,51 @@ const BLDetails = () => {
               ?.toLowerCase()
               .includes("autre");
             const isAdmin = userRole === "admin" || userRole === "superviseur";
+
+            // Options pour le Select
+            const userOptions = users.map((u) => ({
+              value: u._id,
+              label: `${u.nom} ${u.prenoms}`,
+            }));
+
             return (
               <>
+                {/* SECTION CHANGEMENT DE PAYEUR : Affichée uniquement en mode modification (isEditing) */}
+                {isEditing && isAdmin && (
+                  <div className="space-y-1 pb-2 border-b border-slate-100">
+                    <label className="text-[10px] font-black text-[#EF233C] uppercase ml-2 flex items-center gap-1">
+                      <User size={12} /> Réassigner le payeur (Responsable)
+                    </label>
+                    <Select
+                      options={userOptions}
+                      value={userOptions.find(
+                        (o) => o.value === formData.id_nouveau_agent
+                      )}
+                      onChange={(opt) =>
+                        setFormData({
+                          ...formData,
+                          id_nouveau_agent: opt.value,
+                        })
+                      }
+                      placeholder="Sélectionner un agent..."
+                      className="text-sm font-bold"
+                      styles={{
+                        control: (base) => ({
+                          ...base,
+                          borderRadius: "16px",
+                          padding: "4px",
+                          backgroundColor: "#fff1f2",
+                          border: "none",
+                        }),
+                      }}
+                    />
+                    <p className="text-[9px] text-slate-400 ml-2 italic">
+                      Note : Modifier l'agent déclenchera un remboursement sur
+                      l'ancien compte et un débit sur le nouveau.
+                    </p>
+                  </div>
+                )}
+
                 <div
                   className={`grid ${
                     isLiq && isAdmin
@@ -517,6 +587,7 @@ const BLDetails = () => {
                     </div>
                   )}
                 </div>
+
                 {isLiq && (
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-blue-500 uppercase ml-2">
@@ -536,6 +607,7 @@ const BLDetails = () => {
                     />
                   </div>
                 )}
+
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
                     Description {!isAutre && "(Lecture seule)"}
@@ -554,12 +626,21 @@ const BLDetails = () => {
                     }
                   />
                 </div>
+
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs hover:bg-[#EF233C] transition-all disabled:opacity-50"
+                  className={`w-full py-4 rounded-2xl font-black uppercase text-xs transition-all disabled:opacity-50 text-white ${
+                    isEditing
+                      ? "bg-blue-600 hover:bg-blue-700"
+                      : "bg-slate-900 hover:bg-[#EF233C]"
+                  }`}
                 >
-                  {submitting ? "Traitement..." : "Confirmer le règlement"}
+                  {submitting
+                    ? "Traitement..."
+                    : isEditing
+                    ? "Mettre à jour le paiement"
+                    : "Confirmer le règlement"}
                 </button>
               </>
             );
@@ -571,9 +652,62 @@ const BLDetails = () => {
       <Modal
         isOpen={showValidationModal}
         onClose={() => setShowValidationModal(false)}
-        title="Facturation"
+        title="Facturation du Dossier"
       >
         <form onSubmit={handleValiderBL} className="p-4 md:p-6 space-y-6">
+          {/* RÉSUMÉ DU DOSSIER DANS LA MODALE */}
+          <div className="bg-slate-900 rounded-2xl p-4 text-white shadow-inner">
+            <div className="flex justify-between items-start mb-3 border-b border-slate-700 pb-2">
+              <div>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                  Client
+                </p>
+                <p className="text-xs font-bold uppercase text-emerald-400">
+                  {bl.id_client?.nom}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                  N° BL / Code
+                </p>
+                <p className="text-xs font-bold uppercase">
+                  {bl.numBl}{" "}
+                  <span className="text-slate-500">({bl.codeBl || "---"})</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center gap-2">
+                <div className="size-7 bg-slate-800 rounded-lg flex items-center justify-center">
+                  <Box size={14} className="text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-[8px] font-black text-slate-500 uppercase">
+                    Volume
+                  </p>
+                  <p className="text-[11px] font-bold">
+                    {bl.nbrDeConteneur} Conteneur(s)
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="size-7 bg-slate-800 rounded-lg flex items-center justify-center">
+                  <CheckCircle2 size={14} className="text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-[8px] font-black text-slate-500 uppercase">
+                    N° Conteneur
+                  </p>
+                  <p className="text-[11px] font-bold truncate">
+                    {bl.numDeConteneur || "N/A"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* INDICATEURS FINANCIERS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
               <p className="text-[9px] font-black text-slate-400 uppercase mb-1">
@@ -606,14 +740,15 @@ const BLDetails = () => {
               </p>
             </div>
           </div>
+
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-              Montant à facturer
+              Montant à facturer au client
             </label>
             <div className="relative">
               <input
                 type="number"
-                className="w-full p-4 md:p-5 bg-slate-50 rounded-2xl md:rounded-[1.5rem] text-xl md:text-2xl font-black outline-none border-2 border-transparent focus:border-emerald-500"
+                className="w-full p-4 md:p-5 bg-slate-50 rounded-2xl md:rounded-[1.5rem] text-xl md:text-2xl font-black outline-none border-2 border-transparent focus:border-emerald-500 transition-all"
                 value={montantFacturer}
                 onChange={(e) => setMontantFacturer(e.target.value)}
                 placeholder="0"
@@ -624,10 +759,11 @@ const BLDetails = () => {
               </span>
             </div>
           </div>
+
           <button
             type="submit"
             disabled={submitting || !montantFacturer}
-            className="w-full py-4 md:py-5 bg-emerald-600 text-white rounded-2xl md:rounded-[1.5rem] font-black uppercase text-xs shadow-lg hover:bg-emerald-700 transition-colors"
+            className="w-full py-4 md:py-5 bg-emerald-600 text-white rounded-2xl md:rounded-[1.5rem] font-black uppercase text-xs shadow-lg hover:bg-emerald-700 transition-all disabled:opacity-50"
           >
             {submitting ? "Chargement..." : "Enregistrer la facture"}
           </button>
